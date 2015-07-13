@@ -469,3 +469,4 @@ class Graph(object):
         for i in xrange(len(self.nn)):
             for neighbour in self.nn[i]:
                 as_nxgraph.add_edge(i, neighbour)
+        return as_nxgraph
