@@ -13,7 +13,6 @@ from collections import Counter
 from RateDistribution import Distro
 
 
-
 def _pick_rand_el(a_list):
     """
         Returns and removes a random element from a list.
@@ -23,11 +22,13 @@ def _pick_rand_el(a_list):
     a_list[rand_index], a_list[-1] = a_list[-1], a_list[rand_index]
     return a_list.pop()
 
+
 def _get_rand_el(a_list):
     """
         Returns random element from a list without removing it.
     """
     return a_list[nrand.randint(0, len(a_list))]
+
 
 class Scenario():
     def __init__(self, contact_network, pathogen, treatment=None, **params):
@@ -44,60 +45,85 @@ class Scenario():
                 - t_max: gives the maximal time after which the simulation stops.
                     Defaults=1000
                 - t_burn: time window for the exclusive spread of the wild type.
-                - dt: to come
+                - dt: the time step at which the current status should be recorded.
                 - default_susceptibility: Value [0,1] to be used for any missing susceptibility.
                     Default=1.
         """
-        self.log = {}  # this will store self.current_view at various times
+        # this will store self.current_view at various times
+        # Note: this will be replaced with self.outcome so feel free to ignore this
+        self.log = {}
+        # this holds detailed information about what happened during a simulation
         self.simulation_log = {
-            'phases': {},
-            'mutations': [],
-            'adjacency': {},
-            'modifications': {},
-            'param_alternation': {}
+            'phases': {},  # holds a dict with all the setup parameters at the starting time of a new phase.
+            'mutations': [],  # holds all mutation events.
+            'adjacency': {},  # the adjacency matrix of the contact network
+            'modifications': {},  # keeps track of any change of the status (e.g. artificial infection event)
+            'param_alternation': {}  # keeps track of any parameter alternations during the simulation
         }
-        # phases holds a dict with all the setup parameters at the starting time of a new phase.
-        #mutations holds all mutation events.
-        self.outcome = {}  #this will hold computed results
+        # this will hold processed output
+        self.outcome = {}
+        # set the default starting time to 0
         self.t = 0
         self.contact_network = contact_network
         self.pathogen = pathogen
         #init of optional and internal arguments
-        self._default_susceptibility = 1
-        self._default_drug_selection_factor = 1
+        self._default_susceptibility = 1  # by default hosts are susceptible
+        self._default_drug_selection_factor = 1  # by default drugs do not increase mutation/selection rates
+        # holds the number of infected individuals for each strain
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
+        # Note: used to contain the status of the host population overt time - will be redefined and is not in use.
         self._counts_over_time = zeros((1, self.pathogen.n))
-        try:
-            self._dt = 5 / float(min(self.pathogen.trans_rates))  #issue: not sure yet about the default value
-        except ZeroDivisionError:
-            self._dt = 5 / float(min(self.pathogen.rec_rates))
-        for opt_arg in ['default_susceptibility', 'default_drug_selection_factor', 'dt']:
+        # set the default value for the time step used to regularly test if a quasi steady state is reached
+        self._dt = params.get(
+            'dt',  # issue: not sure jet about the default value
+            5 / float(
+                min(self.pathogen.trans_rates)
+            ) if float(
+                min(self.pathogen.trans_rates)
+            ) != 0. else 5 / float(
+                min(self.pathogen.rec_rates)
+            )
+        )
+        # set arguments that can be provided but don't need to
+        for opt_arg in ['default_susceptibility', 'default_drug_selection_factor']:
             if opt_arg in params:
                 setattr(self, '_' + opt_arg, params.pop(opt_arg))
                 print '<{0:s}> was specified as an argument.'.format(opt_arg)
         self._resolve_hots_pathogen_relations()
+        # by default do not consider selection
         self.skip_selection = True
+        # run through all the pathogens provided
         for strain_id in xrange(self.pathogen.n):
+            # get the rates at which this strain 'mutates' to another strain
             a_selection = self.pathogen.select_rates[strain_id]
+            # if this strain changes with a certain rate into another strain
             if any([rate != 0 for rate in a_selection]):
+                # we need to consider selection in the simulation
                 self.skip_selection = False
         self.treatment = treatment
+        # if the treatment argument is provided
         if treatment is None:
+            # we can ignore treatment (can always be changed later)
             self.skip_treatment = True
         else:
+            # we need to take into account treatment
             self.skip_treatment = False
             self._resolve_treatment_pathogen_relations()
+        # initialize the status (-1 means susceptible): everyone is susceptible
         self.current_view = [-1 for _ in xrange(self.contact_network.n)]
-        self.current_infection_type = [-1 for _ in xrange(self.contact_network.n)]  # indicate whether token through
-        # infection or mutation. 0: infection, 1: mutation
-        self._phase_passon = {}  #dict that can be used to pass on values between phases.
-
+        # indicate whether host was infected through infection or mutation. 0: infection, 1: mutation
+        self.current_infection_type = [-1 for _ in xrange(self.contact_network.n)]  # -1: not infected
+        # dict that can be used to pass on values between phases.
+        self._phase_passon = {}
+        # initialize the status of whether or not a host is under treatment. (-1: not infected
         self.current_treatment = [-1 for _ in xrange(self.contact_network.n)]
-        self.treating = []  #this will be a list of booleans (index: strain_id, value: treating yes/no)
+        # this will be a list of booleans (index: strain_id, value: treating yes/no)
+        self.treating = []
+        # initialize the priorityqueue which will hold all the events (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
 
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
-    # > call the reset function in self.__init__
+    # ideally reset should be called in __init__ to avoid any code duplication.
     def reset(self, graph=None):
         """
         This method allow to reset the entire scenario, i.e. the scenario is set back to the time t=0 before any
@@ -120,7 +146,7 @@ class Scenario():
         self.t = 0
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         self._counts_over_time = zeros((1, self.pathogen.n))
-        self.current_view = [-1 for _ in xrange(self.contact_network.n)]  # Indicates the current status of the pop.
+        self.current_view = [-1 for _ in xrange(self.contact_network.n)]  # Indicates the current status of the hosts
         self.current_infection_type = [-1 for _ in xrange(self.contact_network.n)]
         self.current_treatment = [-1 for _ in xrange(self.contact_network.n)]
         self._phase_passon = {}  #dict that can be used to pass on values between phases.
@@ -134,15 +160,28 @@ class Scenario():
         return None
 
     def _resolve_hots_pathogen_relations(self):
-        for host_id in xrange(self.contact_network.n):
-            for a_suscept in self.contact_network._susceptible:
-                if 'Default' in a_suscept:
-                    default = a_suscept.pop('Default')
-                else:
-                    default = self._default_susceptibility
-                self.contact_network.susceptible[host_id] = [default for _ in xrange(self.pathogen.n)]
-                for strain_name in a_suscept:
-                    self.contact_network.susceptible[host_id][self.pathogen.ids[strain_name]] = a_suscept[strain_name]
+        """
+        It might be that some hosts are not or less susceptible to some pathogen strains. This method properly
+            established the relation between each host and the present pathogen strains. See ContactNetwork for more
+            details.
+        :return:
+        """
+        # run through all the hosts
+        for host_id in xrange(len(self.contact_network._susceptible)):
+            # get the susceptibility status for this host
+            a_suscept = self.contact_network._susceptible[host_id]
+            # get the default value either from the ContactNetwork object
+            if 'Default' in a_suscept:
+                default = a_suscept.pop('Default')
+            # or from self
+            else:
+                default = self._default_susceptibility
+            # initialize all susceptibilities as the default
+            self.contact_network.susceptible[host_id] = [default for _ in xrange(self.pathogen.n)]
+            # if other values are provided (e.g. wild_type: 0.5) convert the pathogen strain name to its id and
+            # set the suscepibilit for this strain
+            for strain_name in a_suscept:
+                self.contact_network.susceptible[host_id][self.pathogen.ids[strain_name]] = a_suscept[strain_name]
         return 0
 
     def _resolve_treatment_pathogen_relations(self):
@@ -809,7 +848,7 @@ class Scenario():
             if with_run:
                 t_start = phase.pop('t_start')
                 t_stop = phase.pop('t_stop')
-                counts_length = len(self._counts_over_time)
+                #counts_length = len(self._counts_over_time)
                 # if counts_length < int(t_stop):
                 # self._counts_over_time.extend([None for _ in xrange(int(t_stop) - len(self._counts_over_time))])
                 #    for _ in xrange(max(0, int(t_stop) - counts_length) + 10):  #+10 is just a margin
@@ -912,7 +951,7 @@ class Scenario():
                 try:
                     (time, n_event) = self.queue.get_nowait()
                     self.t = round(time, 4)
-                    self._counts_over_time[int(self.t)] = self._count_per_strains
+                    #self._counts_over_time[int(self.t)] = self._count_per_strains
                     event_handler(n_event)
                     if self.t >= t_next_bin:
                         self.log[self.t] = copy(self.current_view)
@@ -1175,6 +1214,8 @@ class Scenario():
                     for x in xrange(inf_times.size):  #put all the infection events of neighbours into the queue
                         self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node))
 
+    # to do: this method needs some make over
+    # - self._counts_over_time is not properly defined anymore
     def quasistable(self, quasi_stable_strain_ids=None, surviving_strain_ids=None):
         """
         Stability check.

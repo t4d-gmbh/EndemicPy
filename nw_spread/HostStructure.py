@@ -84,7 +84,7 @@ class ContactNetwork():
                 'Neither a graph nor a lists of hosts is provided.\n\n%s' % self.__doc__
             )
         self.susceptible = [[] for _ in xrange(len(self._susceptible))]
-        #this is only filled up in the Scenario class in the Spreading module.
+        # this is only filled up in the Scenario class in the Spreading module.
 
     def update_topology(self, graph):
         """
