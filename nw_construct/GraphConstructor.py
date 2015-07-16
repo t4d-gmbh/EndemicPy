@@ -441,3 +441,32 @@ class Graph(object):
                 self._convert_to_array()
             self.n = len(self.nn)
         return 0
+
+    @property
+    def as_igraph(self):
+        """
+        Method to export the Graph object to an igraph.Graph object
+        :return: igraph.Graph
+        """
+        from igraph import Graph as iGraph
+        as_igraph = iGraph(directed=False)
+        as_igraph.add_vertices(range(self.n))
+        for i in xrange(len(self.nn)):
+            for neighbour in self.nn[i]:
+                as_igraph.add_edges([(i, neighbour)])
+        as_igraph.simplify()
+        return as_igraph
+
+    @property
+    def as_networkx(self):
+        """
+        Method to export the Graph object ot a networkx.Graph object
+        :return: networkx.Graph
+        """
+        from networkx import Graph as nxGraph
+        as_nxgraph = nxGraph()
+        as_nxgraph.add_nodes_from(xrange(self.n))
+        for i in xrange(len(self.nn)):
+            for neighbour in self.nn[i]:
+                as_nxgraph.add_edge(i, neighbour)
+        return as_nxgraph
