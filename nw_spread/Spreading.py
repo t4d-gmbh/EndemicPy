@@ -20,6 +20,7 @@ def _pick_rand_el(a_list):
     rand_index = nrand.randint(0, len(a_list))
     # swap element with last one (to use pop on it)
     a_list[rand_index], a_list[-1] = a_list[-1], a_list[rand_index]
+    # remove and return the element
     return a_list.pop()
 
 
@@ -195,15 +196,16 @@ class Scenario():
         :return:
         """
         nbr_of_therapies = self.treatment.n
-        # initialize the probabilities and therapy delays(node specific)
+        # initialize the probabilities and therapy delays (node specific)
         self.therapy_probas = [[]] * nbr_of_therapies
-        #self.therapy_probas = [None] * nbr_of_therapies
         self.therapy_delays = [[]] * nbr_of_therapies
-        #self.therapy_delays = [None] * nbr_of_therapies
-
+        # initialize the list containing for each therapy a factor that will multiply the transmission rate
         self.therapy_trans_facts = [{}] * nbr_of_therapies
+        # same thing for the recovery rate
         self.therapy_recover_facts = [{}] * nbr_of_therapies
+        # and the same thing for the selection rate (selection rate: rate at which a strain can mutate to another one)
         self.therapy_select_facts = [{}] * nbr_of_therapies
+        # the two dicts below will contain a mapping between therapy and strain id and vice versa
         self.therapy_strain_id_map = {}
         self.strain_therapy_id_map = {}
         for a_therapy in self.treatment.therapies:
@@ -220,6 +222,7 @@ class Scenario():
             else:
                 raise ValueError('Needs to be implemented')
             #self.therapy_probas[its_id] = a_therapy.treatment_proba
+            # if the therapy comes with a delay, handle the delay properly
             if type(a_therapy.delay) is float:
                 self.therapy_delays = [
                     a_therapy.delay for _ in range(self.contact_network.n)
@@ -228,26 +231,33 @@ class Scenario():
             else:
                 raise ValueError('Needs to be implemented')
             #self.therapy_delays[its_id] = a_therapy.delay
+            # self.pathogen.ids is a dict like so: {'wild_type': 0,...} so it links the name to an id
             for strain_name in self.pathogen.ids:
                 strain_id = self.pathogen.ids[strain_name]
+                # the try except statement is to test whether the strain_name is present in a_therapy.drug.trans-
+                #   mission_factor
                 try:
                     self.therapy_trans_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.transmission_factor[strain_name]
                     self.therapy_strain_id_map[its_id].append(strain_id)
+                # if the strain_name is not present use the default value
                 except KeyError:
                     self.therapy_trans_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.transmission_factor['Default']
+                # same story for the recover factor
                 try:
                     self.therapy_recover_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.recover_factor[strain_name]
                     self.therapy_strain_id_map[its_id].append(strain_id)
+                # als here, use default if strain_name is not there
                 except KeyError:
                     self.therapy_recover_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.recover_factor['Default']
+                # and again same for the selection factor
                 try:
                     self.therapy_select_facts[its_id][
                         strain_id
@@ -257,15 +267,23 @@ class Scenario():
                     self.therapy_select_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.selection_factor['Default']
+                # it might be we added a strain_id several times to self.therapy_strain_id_map[its_id] if so remove
+                #   the duplicates
                 self.therapy_strain_id_map[its_id] = list(set(self.therapy_strain_id_map[its_id]))
+        # run through all the therapies
         for therapy_id in self.therapy_strain_id_map:
+            # run through all the strain ids for a given therapy (i.e. all the strains that are treated with it)
             for strain_id in self.therapy_strain_id_map[therapy_id]:
+                # try to append the therapy id to the mapping in the other direction, i.e. to get all the applied
+                #   therapies given a strain id
                 try:
                     self.strain_therapy_id_map[strain_id].append(therapy_id)
+                # if the therapy id was the first one, create the list.
                 except KeyError:
                     self.strain_therapy_id_map[strain_id] = [therapy_id]
         return 0
 
+    # just some custom errors to get more specific output if something goes wrong
     class WrongPathogenError(Exception):
         pass
     
