@@ -677,10 +677,21 @@ class Scenario():
             't_stop': float
                 If t_stop is provided the method will try to take out events from the event queue until it finds an
                 event with t <= t_stop (or some other halt condition is met - like the assert_survival task below)
+                Note: it might be that a phase does not run until t_stop but ends earlyer (e.g. if 'builing_up' task
+                if provided - see below). For such cases we cannot tell at what time the phase ends and thus at what
+                time the next phase should start. For this there is the self._pase_passon attribute which will be used
+
+            'dt': float
+                Can be used to specify the time interval for which the current status should be reported. This only
+                really is usefull if 'explicit': True (see below).
             'with_treatment': boolean
             'with_selection': boolean
                 If provided will force the scenario to use the specific event handler. If not provided both default to
                 False.
+            'treating': [strain_name, ...]
+                If only some strains should be treated you can specify them with the 'treating' task. If 'treating' is
+                not provided but 'with_treatment': True, all strains are treated (if the scenario has drug for them).
+                So, best always provide the 'treating' task.
             'assert_survival': [strain_name, ...]
                 If this task is provided, the simulation stops if one of the specified strain dies out.
             'halt_condition': [strain_name, ...]
@@ -904,16 +915,19 @@ class Scenario():
                 else:
                     self.treatment = treatment_to_add
                     self.skip_treatment = False
-
                 self._resolve_treatment_pathogen_relations()
+            # most of the specified tasks are taken care of by now. However, if t_stop is provided we still need to
+            # carry out the actual simulation. This is done with the self._run method
             if with_run:
-                t_start = phase.pop('t_start')
-                t_stop = phase.pop('t_stop')
+                t_start = phase.pop('t_start', None)
+                t_stop = phase.pop('t_stop', None)
                 #counts_length = len(self._counts_over_time)
                 # if counts_length < int(t_stop):
                 # self._counts_over_time.extend([None for _ in xrange(int(t_stop) - len(self._counts_over_time))])
                 #    for _ in xrange(max(0, int(t_stop) - counts_length) + 10):  #+10 is just a margin
                 #        self._counts_over_time = n_append(self._counts_over_time, [[0 for _ in xrange(self.pathogen.n)]], 0)
+
+                # call the self._run method and pass the remaining tasks on to it
                 self._run(
                     t_start=t_start,
                     t_stop=t_stop,
@@ -935,14 +949,14 @@ class Scenario():
             #    if break_here:
             #        break
         return 0
-    # to do: PROCESS ACQUIRE TYPE AND CURRENT STATE.  SOMETHING PER DEGREE
+
     def _run(self,
-             t_start,
              t_stop,
              with_selection=False,
              with_treatment=False,
              halt_condition=False,
              assert_survival=False,
+             t_start = None,
              **params
     ):
         """
@@ -955,7 +969,7 @@ class Scenario():
         :param with_treatment: If True, the specified treatment is applied.
             NOTE: If True, consider to put the <treating> argument to specify which strains are treated.
         :param halt_condition: If list of strain names, it is checked for quasi_stability for those strains
-        :param params: Collection of optional arguments:
+        :param params: Collection of optional arguments (remaining tasks):
             - treating: Dict indicating which strain is treated, eg. treating={'wild_type': True, 'Default': False}
                 If 'Default' is given, this value will be applied to all strains missing in the dictionary.
             - dt: The time interval after which to update self.log
@@ -969,13 +983,19 @@ class Scenario():
         #    assert_survival=assert_survival,
         #    params=params
         #)
+        # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         event_handler = self._handle_event_simple
         self.treating = []
+        # if no selection parameters where provided when initializing the scenario no selection will be attempted no
+        # matter what is specified in the phase we are currently in.
         if self.skip_selection:
             with_selection = False
+        # same goes for treatment. If no treatment was specified when initializing (and the task 'add_treatment' was
+        # never provided so far) we skip the treatment, no mather what is specified in the current phase.
         if self.skip_treatment:
             with_treatment = False
         if with_treatment:
+            # if we have treatment, clarify which strain to treat
             if 'treating' in params:
                 treat_dict = params.pop('treating')
                 def_val = True
@@ -985,18 +1005,24 @@ class Scenario():
                 for strain_name in treat_dict:
                     self.treating[self.pathogen.ids[strain_name]] = treat_dict[strain_name]
             else:
-                self.treating = [True for _ in xrange(self.pathogen.n)]  #if treating is missing,all strains are treated
+                self.treating = [True for _ in xrange(self.pathogen.n)]  #if treating is missing all strains are treated
+            # if we have treatment and selection, we need to use the combined event handler
             if with_selection:
                 event_handler = self._handle_event_combined
+            # if it is only treatment, the treatment event handler is the one to use
             else:
                 event_handler = self._handle_event_treatment
         elif with_selection:
+            # at this point we know that only selection is on, so use the selection event handler.
             event_handler = self._handle_event_selection
+        # check if the time interval for reporting is specified, if not use default one.
         if 'dt' in params:
             dt = params.pop('dt')
         else:
             dt = self._dt
+        # get the next time at which the status of the hosts should be reported or halt condition to be checked
         t_next_bin = self.t + dt
+        # check if we have some halt conditions that might lead to a termination of the simulation before t_stop.
         with_halt_condition = False
         if halt_condition or assert_survival:
             with_halt_condition = True
@@ -1006,24 +1032,39 @@ class Scenario():
             focus_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
         if assert_survival:
             surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+        # if we have a halt condition this part will conduct the simulation
         if with_halt_condition:
             halt = False
+            # should the run be with explicit logs
+            with_logging = params.get('explicit', False)  # defaults to False
+            # work the event queue until we either hit t_stop or the halt condition
             while self.t < t_stop and not halt:
                 try:
+                    # get the next event
                     (time, n_event) = self.queue.get_nowait()
-                    self.t = round(time, 4)
+                    # update the time of the scenario
+                    self.t = round(time, 4)  # issue: using round here is not ideal
                     #self._counts_over_time[int(self.t)] = self._count_per_strains
+                    # pass the event to the event handler
                     event_handler(n_event)
+                    # the new time is after the checking time
                     if self.t >= t_next_bin:
-                        self.log[self.t] = copy(self.current_view)
+                        if with_halt_condition:
+                            self.log[self.t] = copy(self.current_view)
                         t_next_bin += dt
+                        # check if we are in quasistable state (QSS) if yes, stop the sim
                         if self.quasistable(focus_strain_ids, surviving_strain_ids):
                             halt = True
-                            self.log[self.t] = copy(self.current_view)
+                            # if we were not logging, write to the log now.
+                            if not with_logging:
+                                self.log[self.t] = copy(self.current_view)
+                # if no more events are to handle the sim is over (obviously)
                 except Empty:
                     self.log[self.t] = copy(self.current_view)
                     break
+        # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
+            # handle the stop condition
             strains_stop_cond = params.pop('building_up')
             if 'absolute' in strains_stop_cond:
                 abs_cond = strains_stop_cond.pop('absolute')
@@ -1036,6 +1077,7 @@ class Scenario():
             if abs_cond:
                 abs_id_stop_cond = {self.pathogen.ids[name]: abs_cond[name] for name in abs_cond}
                 #building_status = {_id: self._count_per_strains[_id] for _id in abs_id_stop_cond}
+                # check if the stop condition is already met
                 if any(self._count_per_strains[_id] >= abs_id_stop_cond[_id] for _id in abs_id_stop_cond):
                     return 0
             if rel_cond:
@@ -1074,7 +1116,7 @@ class Scenario():
                 #        rel_id_stop_cond[_id][0] * self._count_per_strains[rel_id_stop_cond[_id][1]]
                 #        for _id in rel_id_stop_cond):
                 #    return 0
-            # clarify which type of condition is active:
+            # clarify which type of condition is active and define appropriate tests:
             # to do: revert back to using self._count_per_strains as soon as count_per_strains is reliable again
             if not abs_cond and rel_cond:
                 def test_cond(self):
@@ -1091,6 +1133,8 @@ class Scenario():
                             print 'reached fraction', self._count_per_strains, [
                                     self.current_view.count(i) for i in self.pathogen.ids.values()
                                 ]
+                            # if we stop, we need to provide a new starting time for the next phase
+                            self._phase_passon = {'t_start': self.t}
                             return 1
                     #if any(
                     #        self._count_per_strains[_id] >=
@@ -1146,6 +1190,7 @@ class Scenario():
                     except Empty:
                         self.log[self.t] = copy(self.current_view)
                         break
+        # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
             if 'explicit' in params and params['explicit'] is True:
                 while self.t < t_stop:
@@ -1282,7 +1327,7 @@ class Scenario():
                     for x in xrange(inf_times.size):  #put all the infection events of neighbours into the queue
                         self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node))
 
-    # to do: this method needs some make over
+    # to do: this method needs some make over ( is not and should not be used at the moment )
     # - self._counts_over_time is not properly defined anymore
     def quasistable(self, quasi_stable_strain_ids=None, surviving_strain_ids=None):
         """
