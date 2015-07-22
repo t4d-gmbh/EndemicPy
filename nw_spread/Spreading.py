@@ -655,53 +655,84 @@ class Scenario():
                     self._count_per_strains[token_id] += 1
         return 0
 
+    # this method makes things moving.
     def run(self, phases):
         """
-        'introducing': {'new_infection': {strain_name: 'random'/IDs}}
-        'parameter_alternation': {strain_name: {some_rate: value}}}
-            Note: if Default values were set for the mutation selection reate they need to be set again.
-        't_start'
-        't_stop'
-        'assert_survival': [strain_name, ...]
-        'halt_condition': [strain_name, ...]
-        'building_up': {strain_name: value, ref} the value indicates the amount of refs that should be infected with
-            the indicated strain. If during the phase this values is attained (or exceeded) the phase is stopped and
-            the scenario time (self.t) is returned.
-            The building up can either be relative or absolute.
-                For relative building up, a typical configuration could look as follows:
-                    'building_up': {'relative': {mutant_1: (0.9, total_infected)}}
-                    This reads: the building up stops once the mutant_1 strain reached 90% of the total number of 
-                    infected. Alternatively 'total_infected' can be replaced by 'total' which would mean the total 
-                    number of hosts or by any other name of present strains, e.g. the wild_type.
-        'explicit': boolean. if True, then on every self.dt the current status is written into self.log (slowdown!).
-        'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
-            'target' must be a list of pathogen names and/or 'susc' for susceptible indicating the group of hosts
-                withing which a shuffle should take place.
-            'source' a list of pathogen names and/or 'susc' for susceptible indicating the group that should be
-                distributed within the target group.
-            'substitute' a list of pathogen names and/or 'susc' if this list is not empty, all hosts of the source
-                group will get assigned randomly a state from the substitute list.
-            'mode': optional argument (default value is 'keep') determines how the recover times should be handled.
-                possible values are 'keep', 'reset', 'source', 'both'.
-                    'keep' will not reset the recover times and 'reset' will reset all the recover times. 'source' only 
-                    resets the recover times of all the source nodes and 'both' will reset the recover times for 
-                    both 'source' and 'target'
-            example: 'shuffle': {'target' = [wild_type, mutant_1], 'source': [wild_type, mutant_1], 'substitute': []}
-                This will redistribute the status of all the hosts infected with either wild_type or mutant_1 among
-                themselves.
-        'state_change': dict with either 'node' or 'relative' and an optional 'mode'. If 'node', for each node id give a new token. new tokens are either pathogen names
-            or 'susc' for susceptible (later 'r' for resistant)
-            If 'relative' a dict needs to be provided, specifying what token to replace (key) with how much of what
-                e.g. 'wild_type': (0.5, 'mutant_1') reads replace 0.5 of the wild_types with a mutant_1 token.
-            If 'mode' is present the event queue is reset with the given mode. If mode is 'keep' then the newly intor-
-            duced taken will keep the recover times of their previous taken, with exception of those that were
-            initially susceptible. if mode is 'reset' all the recover times are reset.
-            example: 'state_change': {1: 'mutant_1', 2: 'wild_type', ...} will simply change the token of node 1 to
-                'mutant_1' and of node 2 to 'wild_type'. Note that the pathogenic parameters are not reset, i.e. node 1
-                will keep its previous recover time and continue to infect with its previous token.
-        'reset_recovery': boolean. If true, all the recover times will be reset (drawn from the recover rate dists)
-        'add_treatment': adds a new treatment to the existing scenario. Note that the treatment status is not changed,
-            i.e. just adding a new treatment will not lead to an actual treatment.
+        This method will work through a list of phases. Each phase is a dictionary and each entry in this dictionary can
+        be seen as a task. You might just specify a single task for a phase or several but in order to keep things
+        tractable, use as few tasks as possible for a phase.
+        Below are all possible tasks listed.
+
+        Possible tasks:
+
+            'new_infection': {strain_name: 'random'/IDs/other_strain}
+                This will introduce a strain into the population. the strain_name specifies which strain should be
+                introduced, 'random'/IDs/other_strain will specifies who should be infected.
+                (see self._initiate_infection method for details)
+            'parameter_alternation': {strain_name: {some_rate: value}}}
+                This will change parameters of the pathogen.
+                (see self._parameter_alternation method for detail
+                Note: if Default values were set for the mutation selection rate they need to be set again.
+            't_start': float
+            't_stop': float
+                If t_stop is provided the method will try to take out events from the event queue until it finds an
+                event with t <= t_stop (or some other halt condition is met - like the assert_survival task below)
+            'with_treatment': boolean
+            'with_selection': boolean
+                If provided will force the scenario to use the specific event handler. If not provided both default to
+                False.
+            'assert_survival': [strain_name, ...]
+                If this task is provided, the simulation stops if one of the specified strain dies out.
+            'halt_condition': [strain_name, ...]
+                If provided the halt_condition task will check if the specified strains are in QSS and if so, stop the
+                simulation.
+            'building_up': {strain_name: value, ref} the value indicates the amount of refs that should be infected with
+                the indicated strain. If during the phase this values is attained (or exceeded) the phase is stopped and
+                the scenario time (self.t) is returned.
+                The building up can either be relative or absolute.
+                    For relative building up, a typical configuration could look as follows:
+                        'building_up': {'relative': {mutant_1: (0.9, total_infected)}}
+                        This reads: the building up stops once the mutant_1 strain reached 90% of the total number of
+                        infected. Alternatively 'total_infected' can be replaced by 'total' which would mean the total
+                        number of hosts or by any other name of present strains, e.g. the wild_type.
+            'explicit': boolean.
+                This task forces the scenario to provide detailed status reports over the entire simulation.
+                if True, then on every self.dt the current status is written into self.log (slowdown!).
+            'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
+                This task will shuffle in the specified way the infection status of hosts.
+                'target' must be a list of pathogen names and/or 'susc' for susceptible indicating the group of hosts
+                    withing which a shuffle should take place.
+                'source' a list of pathogen names and/or 'susc' for susceptible indicating the group that should be
+                    distributed within the target group.
+                'substitute' a list of pathogen names and/or 'susc' if this list is not empty, all hosts of the source
+                    group will get assigned randomly a state from the substitute list.
+                'mode': optional argument (default value is 'keep') determines how the recover times should be handled.
+                    possible values are 'keep', 'reset', 'source', 'both'.
+                        'keep' will not reset the recover times and 'reset' will reset all the recover times. 'source'
+                        only resets the recover times of all the source nodes and 'both' will reset the recover times
+                        for both 'source' and 'target'
+                example: 'shuffle': {'target' = [wild_type, mutant_1], 'source': [wild_type, mutant_1],
+                    'substitute': []}
+                    This will redistribute the status of all the hosts infected with either wild_type or mutant_1 among
+                    themselves.
+            'state_change': dict with either 'node' or 'relative' and an optional 'mode'. If 'node', for each node id
+                give a new token. new tokens are either pathogen names or 'susc' for susceptible (later 'r' for
+                    resistant)
+                If 'relative' a dict needs to be provided, specifying what token to replace (key) with how much of what
+                    e.g. 'wild_type': (0.5, 'mutant_1') reads replace 0.5 of the wild_types with a mutant_1 token.
+                If 'mode' is present the event queue is reset with the given mode. If mode is 'keep' then the newly
+                introduced tokens will keep the recover times of their previous token, with exception of those that were
+                initially susceptible. if mode is 'reset' all the recover times are reset.
+                Infection times for neighbouring nodes are reset no matter what.
+                example: - 'state_change': {1: 'mutant_1', 2: 'wild_type', ...} will simply change the token of node 1
+                        to 'mutant_1' and of node 2 to 'wild_type'. Note that the pathogenic parameters are not reset,
+                        i.e.  node 1 will keep its previous recover time and continue to infect with its previous token.
+                         - 'state_change': {'mode': 'reset', 1: 'mutant_1'} will change the token for node 1 to mutant_1
+                        and draw a new recovery time for node_1 as well as new infection events for its neighbours.
+            'reset_recovery': boolean. If true, all the recover times will be reset (drawn from the recover rate dists)
+            'add_treatment': adds a new treatment to the existing scenario. Note that the treatment status is not
+                changed, i.e. just adding a new treatment will not lead to an actual treatment. You'll need to provide
+                the 'with_treatment': True task to run the simulation with a treatment.
         """
         self.simulation_log['scenario'] = phases
         self.simulation_log['adjacency'][self.t] = self.contact_network.nn
@@ -1141,6 +1172,13 @@ class Scenario():
         return 0
 
     def _parameter_alternation(self, alternations):
+        """
+        E.g. {wild_type: {'transmission_rate': 1}} will set the transmission rate of the wild_type to 1
+
+        :param alternations: a dictionary holding stain names as keys and a dictionary as values.
+            each of the value-dictionaries can contain rates as keys and the new desired value as values.
+        :return:
+        """
         for strain_name in alternations:
             #get its id
             its_id = self.pathogen.ids[strain_name]
