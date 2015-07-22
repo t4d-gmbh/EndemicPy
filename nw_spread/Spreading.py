@@ -293,32 +293,34 @@ class Scenario():
     class InitiateInfectionError(Exception):
         pass
 
+    # this is an internal method (_...) so the idea is to never explicitly having to call this method.
     def _initiate_infection(self, strain, ):
         """
-        Function to set the initial seed for an infection.
-
         Arguments:
             - strains: dict, key is the name of a strain, value is a list of node id's or the name of another pathogen
                 strain or 'random'. If the value is 'random' then one random host is infected.
                 If the value gives another pathogen strain, then a randomly chosen individual that is currently infected
-                with the indicated pathogen strain is chose and will be infected with the strain provided in the key.
+                with the indicated pathogen strain is chosen and will be infected with the strain provided in the key.
                 Eg. - strain = {'wild_type':[1,5,10]}: infects hosts 1,5 and 10 with the
                       wild type strain.
                     - strain = {'mutant_1': 'wild_type'}: infect a randomly chose host that is currently infected with
                       the wild_type strain with the mutant_1 strain.
         """
         for name in strain:
+            # make sure the strain exists
             if name not in self.pathogen.ids.keys():
                 raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
-            if type(strain[name]) is not str:
+            # if node ids are given as values for the specified strain
+            if isinstance(strain[name], list): #type(strain[name]) is not str:
                 for node_id in strain[name]:
+                    # create infection events for the specified node. See Event class for further details
                     self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False,))
-                    #self.current_view[node_id] = self.pathogen.ids[name]
+            # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
                 self.queue.put_nowait(
                     Event(self.t, nrand.randint(0, self.contact_network.n), self.pathogen.ids[name], False,)
                 )
-                #self.current_view[random.randint(0, self.contact_network.n)] = self.pathogen.ids[name]
+            # if another strain is the value
             elif strain[name] in self.pathogen.ids.keys():
                 # get the ids of of name and strain[name]
                 target_id = self.pathogen.ids[strain[name]]
@@ -332,11 +334,12 @@ class Scenario():
                 ]
                 if not potentials:
                     raise self.InitiateInfectionError('There are no host infected with %s.' % strain[name])
-
                 # chose randomly one of the strain[name] infected hosts -> new_mutated.
                 new_mutated = random.choice(potentials)
-
-                # read out self.queue -> list.
+                # now that we have chose our host to mutate, we need to filter the existing event queue for any events
+                # associated with this host (e.g. this host will not infect its neighbours with its previous strain any-
+                # longer.
+                # copy the event queue into a list
                 pending_events = []
                 while True:
                     try:
@@ -344,24 +347,25 @@ class Scenario():
                     except Empty:
                         break
 
-                # remove all entries where new_mutated infects plus the one where he recovers.
-                # push the event list back to self.queue
+                # remove all entries where new_mutated infects plus the one where he recovers an recreate the queue
                 for an_event in pending_events:
                     if an_event[1][3] != new_mutated:  #filter out infections where new_mutated is the source
                         if an_event[1][0] != new_mutated:  #do not take the recover event for new_mutated
                             self.queue.put_nowait(an_event)
 
                 # add infection event of new_mutated with strain[name]
-                #    make sure infection time is bigger than self.t such that it will be executed
-                #    make sure that the infection overwrites new_mutated's old status (use inf_event = False)
+                # make sure that the infection overwrites new_mutated's old status (use inf_event = False)
                 self.queue.put_nowait(Event(self.t, new_mutated, mut_id, False,))
-
             else:
-                #to do: print self._initiate_infection.__doc__ along.
-                raise self.InitiateInfectionError('The new infection event failed.')
+                raise self.InitiateInfectionError(
+                    'The new infection event failed. Have a look at how to specify an infection event:\n{}'.format(
+                        self._initiate_infection.__doc__
+                    )
+                )
             self._init_queue()
         return 0
 
+    # this method is not used anymore. Could be removed.
     def initiate_infection(self, strain, ):
         """
         Function to set the initial seed for an infection.
@@ -384,6 +388,7 @@ class Scenario():
             self._init_queue()
         return 0
 
+    # unused method can be removed (along with self.initiate_infection)
     def _init_queue(self, ):
         """
         Initiate the priority queue according to self.current_view
@@ -394,6 +399,12 @@ class Scenario():
                 self.current_view[node_id] = -1
         return 0
 
+    # here below follow several _handle_event... functions each one of these take an event (node id, token id, inf type,
+    # source) as an argumnet (see Event class for further details) and digest it. Based on the event self.current_view
+    # will be updated an new events will be created
+
+    # method to handle events if we have both treatment and mutation/selection. Maybe best start with the method
+    # self._handle_event_simple as this is for the most trivial case (no treatment, no selection/mutation)
     def _handle_event_combined(self, an_event):  #with both, selection and treatment
         """
         This method handles the events in a spreading process with selection (mutation + selection) and treatment.
@@ -405,6 +416,7 @@ class Scenario():
         if token_id == -1:  #the Event is recovering
             old_strain_id = self.current_view[node_id]
             self.contact_network.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
+            # set the node status back to susceptible
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
             self._count_per_strains[old_strain_id] -= 1
@@ -477,7 +489,7 @@ class Scenario():
         node_id, token_id, inf_event, source = an_event  # token_id is the id of the pathogen -1 means recovering/dead
         if token_id == -1:  # the Event is recovering
             old_strain_id = self.current_view[node_id]  # what was the old status of that node
-            # self.pathogen.rec_types is a list indicating how one recovers after an infection.The index is the pathogen
+            # self.pathogen.rec_types: a list indicating how one recovers after an infection. The index is the pathogen
             # id and the value is either 0,1 meaning ether back to susceptible or resistant.
             self.contact_network.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
             self.current_view[node_id] = -1  # set the node back to the uninfected state
