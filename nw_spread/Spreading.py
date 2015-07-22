@@ -114,7 +114,7 @@ class Scenario():
         self.current_view = [-1 for _ in xrange(self.contact_network.n)]
         # indicate whether host was infected through infection or mutation. 0: infection, 1: mutation
         self.current_infection_type = [-1 for _ in xrange(self.contact_network.n)]  # -1: not infected
-        # dict that can be used to pass on values between phases.
+        # dict that can be used to pass on values between phases. This is more for future use and not important for now.
         self._phase_passon = {}
         # initialize the status of whether or not a host is under treatment. (-1: not infected
         self.current_treatment = [-1 for _ in xrange(self.contact_network.n)]
@@ -1240,6 +1240,8 @@ class Scenario():
                 new_rates = alternations[strain_name]['selection_rate']
                 self.pathogen.update_selection(concerns=its_id, new_rates=new_rates)
 
+    # to do: method should create list of instantaneous infection events then let the list be digested by appropriate
+    # event handlers.
     def _sync_event_queue(self, mode='keep'):
         """
         This method will consume and recreate the event queue based on the status on self.current_view and the mode
