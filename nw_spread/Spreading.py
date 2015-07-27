@@ -160,7 +160,12 @@ class Scenario():
         nn = copy(self.contact_network.nn[node_id])
         recover_time = self.pathogen.rec_dists[token_id].get_val()
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
-        return nn, recover_time, inf_times
+        #nn = nn[inf_times < recover_time]
+        #inf_times = inf_times[inf_times < recover_time]
+        # the last 2 returned arguments are the start and stop condition for the neighbours, which simply boil down to
+        # self.t and the recover_time in the static case
+        return nn, recover_time, inf_times, 0., recover_time
+
 
     def create_neighbour_events_dynamic(self, inf_event, nn, inf_times, node_id, token_id):
         """
@@ -183,7 +188,19 @@ class Scenario():
         :param token_id:
         :return:
         """
-        raise ValueError('This is not implemented yet')
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
+        nn, start_times, stop_times = self.contact_network.get_intervals(node_id, self.t, recover_time)
+        # this should return id_list, start_array, stop_array
+        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
+        # cut the start_times with the current time:
+        start_times = where(
+            start_times >= self.t,
+            start_times - self.t,
+            0.0
+        )
+        stop_times -= self.t
+        return nn, recover_time, inf_times, start_times, stop_times
+
 
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
     # ideally reset should be called in __init__ to avoid any code duplication.
@@ -549,10 +566,18 @@ class Scenario():
                 # this reads: if the node is susceptible (this is all before the 'or not') or it is actually not an
                 # infection event (a mutation in this case)
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
-                    nn = nn[inf_times < recover_time]  # keep only the neighbours in nn which have an infection time
-                    # smaller than the nodes recover_time
-                    inf_times = inf_times[inf_times < recover_time]  # same thing for the infection times
+                    nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
+
+                    # cut the stop times with the recover_time
+                    stop_times = where(
+                        stop_times < recover_time,
+                        stop_times,
+                        recover_time
+                    )
+                    inf_times += start_times
+                    # keep only the neighbours in nn which have an infection time smaller than the nodes recover_time
+                    nn = nn[inf_times < stop_times]
+                    inf_times = inf_times[inf_times < stop_times]  # same thing for the infection times
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))  # put the recover event
                     create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
@@ -576,12 +601,17 @@ class Scenario():
                 pass  # NOTE: if super-infections are possible, here they would take place
             else:  #infection of susceptible host or selection/mutation
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
+                    nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
                     # determine the strain that is selected for and the time at which the mutation will take place
                     # see Pathogen.get_selected method for more details
                     selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
                     if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
                         recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
+                        stop_times = where(
+                            stop_times < recover_time,
+                            stop_times,
+                            recover_time
+                        )
                         new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
                         # for a subsequent event.
                     else:
@@ -589,8 +619,9 @@ class Scenario():
                         # event is simply: recovered
                     # infections of the neighbours is now as without the selection/mutation as we assured that recover
                     # time is either the true recover time or the mutation time.
-                    nn = nn[inf_times < recover_time]
-                    inf_times = inf_times[inf_times < recover_time]
+                    inf_times += start_times
+                    nn = nn[inf_times < stop_times]
+                    inf_times = inf_times[inf_times < stop_times]
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
                     # or the mutation event.
