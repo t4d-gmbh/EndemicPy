@@ -123,6 +123,68 @@ class Scenario():
         # initialize the priorityqueue which will hold all the events (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
 
+    def create_neighbour_events_static(self, inf_event, nn, inf_times, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
+            with a static network
+        :param inf_event:
+        :param nn:
+        :param inf_times:
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        if not inf_event:  # if this event is a mutation from one Strain to another, update the count
+            # of the old Strain
+            self.current_infection_type[node_id] = 1  # set the type of infection to mutation
+            self.simulation_log['mutations'].append(
+                (self.t, token_id, len(self.contact_network.nn[node_id]))
+            )
+            self._count_per_strains[self.current_view[node_id]] -= 1
+        else:
+            self.current_infection_type[node_id] = 0  # set the type of infection to 'through selection'
+        self.current_view[node_id] = token_id  #set the current status of the node to the Strain he is
+        # infected with
+        for x in xrange(inf_times.size):  #put all the infection events of neighbours into the queue
+            self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
+        self._count_per_strains[token_id] += 1  #update the counter of the Strain that is infecting.
+
+    def get_neighbours_static(self, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
+            with a static network
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        nn = copy(self.contact_network.nn[node_id])
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
+        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
+        return nn, recover_time, inf_times
+
+    def create_neighbour_events_dynamic(self, inf_event, nn, inf_times, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
+            with a dynamic network
+        :param inf_event:
+        :param nn:
+        :param inf_times:
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        raise ValueError('This is not implemented yet')
+
+    def get_neighbours_dynamic(self, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
+            with a dynamic network
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        raise ValueError('This is not implemented yet')
+
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
     # ideally reset should be called in __init__ to avoid any code duplication.
     def reset(self, graph=None):
@@ -405,7 +467,7 @@ class Scenario():
 
     # method to handle events if we have both treatment and mutation/selection. Maybe best start with the method
     # self._handle_event_simple as this is for the most trivial case (no treatment, no selection/mutation)
-    def _handle_event_combined(self, an_event):  #with both, selection and treatment
+    def _handle_event_combined(self, an_event, get_neighbours, create_neighbour_events):  #with selection & treatment
         """
         This method handles the events in a spreading process with selection (mutation + selection) and treatment.
 
@@ -425,18 +487,13 @@ class Scenario():
                 pass  #NOTE: if super-infections are possible, here they would take place
             else:  #infection of susceptible host or mutation
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    recover_time = self.pathogen.rec_dists[token_id].get_val()
+                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
                     selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
                     if selection_times[selected_strain_id] < recover_time:
                         recover_time = selection_times[selected_strain_id]
                         new_token, new_inf_event = selected_strain_id, False
                     else:
                         new_token, new_inf_event = -1, True
-                    nn = n_copy(self.contact_network.nn[node_id])
-                    if nn.size:
-                        inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                    else:
-                        inf_times = array([])
                     therapy_ids = self.strain_therapy_id_map[token_id]
                     #to do: gather the various times and chose at random one, not the
                     # smallest as now.
@@ -465,21 +522,11 @@ class Scenario():
                     nn = nn[inf_times < recover_time]
                     inf_times = inf_times[inf_times < recover_time]
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
-                    if not inf_event:
-                        self.current_infection_type[node_id] = 1  # set to 'mutated'
-                        self.simulation_log['mutations'].append(
-                            (self.t, new_token, len(self.contact_network.nn[node_id]))
-                        )
-                        self._count_per_strains[self.current_view[node_id]] -= 1
-                    else:
-                        self.current_infection_type[node_id] = 0
-                    self.current_view[node_id] = token_id
-                    for x in xrange(inf_times.size):
-                        self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
-                    self._count_per_strains[token_id] += 1
+                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
-    def _handle_event_simple(self, an_event):  #no selection, no treatment (but might still need to handle selections)
+    # no selection, no treatment (but might still need to handle selections)
+    def _handle_event_simple(self, an_event, get_neighbours, create_neighbour_events):
         """
         This method handles events in a spreading process without treatment nor selection.
 
@@ -502,33 +549,15 @@ class Scenario():
                 # this reads: if the node is susceptible (this is all before the 'or not') or it is actually not an
                 # infection event (a mutation in this case)
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    nn = n_copy(self.contact_network.nn[node_id])  # get its nearest neighbours
-                    recover_time = self.pathogen.rec_dists[token_id].get_val()  # get the time it takes to recover
-                    if nn.size:  # if he has some neighbours, get the times at which the get infected
-                        inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                    else:  # if he has no neighbours, make empty list
-                        inf_times = array([])
+                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
                     nn = nn[inf_times < recover_time]  # keep only the neighbours in nn which have an infection time
                     # smaller than the nodes recover_time
                     inf_times = inf_times[inf_times < recover_time]  # same thing for the infection times
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))  # put the recover event
-                    if not inf_event:  # if this event is a mutation from one Strain to another, update the count
-                        # of the old Strain
-                        self._count_per_strains[self.current_view[node_id]] -= 1
-                        self.current_infection_type[node_id] = 1  # set the type of infection to mutation
-                        self.simulation_log['mutations'].append(
-                            (self.t, token_id, len(self.contact_network.nn[node_id]))
-                        )
-                    else:
-                        self.current_infection_type[node_id] = 0  # set the type of infection to 'through selection'
-                    self.current_view[node_id] = token_id  #set the current status of the node to the Strain he is
-                    # infected with
-                    for x in xrange(inf_times.size):  #put all the infection events of neighbours into the queue
-                        self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
-                    self._count_per_strains[token_id] += 1  #update the counter of the Strain that is infecting.
+                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
-    def _handle_event_selection(self, an_event):  #no treatment but with selection
+    def _handle_event_selection(self, an_event, get_neighbours, create_neighbour_events):  #with only selection
         """
         This method handles events in a spreading process with selection (mutation + selection) but without treatment.
 
@@ -547,8 +576,7 @@ class Scenario():
                 pass  # NOTE: if super-infections are possible, here they would take place
             else:  #infection of susceptible host or selection/mutation
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    nn = n_copy(self.contact_network.nn[node_id])
-                    recover_time = self.pathogen.rec_dists[token_id].get_val()
+                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
                     # determine the strain that is selected for and the time at which the mutation will take place
                     # see Pathogen.get_selected method for more details
                     selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
@@ -561,32 +589,15 @@ class Scenario():
                         # event is simply: recovered
                     # infections of the neighbours is now as without the selection/mutation as we assured that recover
                     # time is either the true recover time or the mutation time.
-                    if nn.size:
-                        inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                    else:
-                        inf_times = array([])
                     nn = nn[inf_times < recover_time]
                     inf_times = inf_times[inf_times < recover_time]
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
                     # or the mutation event.
-                    if not inf_event:  #if the current event was a mutation, we want to write it into the simulation log
-                        # as we would like to keep track of all the mutations that occur (e.g. estimate an average rate)
-                        # issue: Should we write this into a separate list (e.g. self._mutations)?
-                        self.simulation_log['mutations'].append(
-                            (self.t, token_id, len(self.contact_network.nn[node_id]))
-                        )
-                        self._count_per_strains[self.current_view[node_id]] -= 1
-                        self.current_infection_type[node_id] = 1  # set to 'mutated'
-                    else:
-                        self.current_infection_type[node_id] = 0  # set to 'through infection'
-                    self.current_view[node_id] = token_id
-                    for x in xrange(inf_times.size):
-                        self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
-                    self._count_per_strains[token_id] += 1
+                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
-    def _handle_event_treatment(self, an_event):  #no selection but with treatment
+    def _handle_event_treatment(self, an_event, get_neighbours, create_neighbour_events):  # with only treatment
         """
         This method handles the events in a spreading process with treatment but without selection.
 
@@ -606,12 +617,7 @@ class Scenario():
                 pass  # NOTE: if super-infections are possible, here they would take place
             else:  # infection of susceptible host or mutation/selection
                 if nrand.rand() < self.contact_network.susceptible[node_id][token_id] or not inf_event:
-                    nn = n_copy(self.contact_network.nn[node_id])
-                    if nn.size:
-                        inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                    else:
-                        inf_times = array([])
-                    recover_time = self.pathogen.rec_dists[token_id].get_val()
+                    nn, recover_time, inf_times = get_neighbours(node_id, token_id)
                     therapy_ids = self.strain_therapy_id_map[token_id]  #knowing the id of the pathogen strain, we
                     # get the id of the therapy (or therapies) that applies to this strain.
                     # issue: at the moment this approach takes only into account one therapy per pathogen strain
@@ -641,18 +647,7 @@ class Scenario():
                     nn = nn[inf_times < recover_time]
                     inf_times = inf_times[inf_times < recover_time]
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
-                    if not inf_event:
-                        self._count_per_strains[self.current_view[node_id]] -= 1
-                        self.current_infection_type[node_id] = 1
-                        self.simulation_log['mutations'].append(
-                            (self.t, token_id, len(self.contact_network.nn[node_id]))
-                        )
-                    else:
-                        self.current_infection_type[node_id] = 0
-                    self.current_view[node_id] = token_id
-                    for x in xrange(inf_times.size):
-                        self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
-                    self._count_per_strains[token_id] += 1
+                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
     # this method makes things moving.
@@ -983,6 +978,13 @@ class Scenario():
         #    assert_survival=assert_survival,
         #    params=params
         #)
+        # determine if the network is static or dynamic and set the appropriate methods.
+        if self.contact_network.is_static:
+            create_neighbour_events = self.create_neighbour_events_static
+            get_neighbours = self.get_neighbours_static
+        else:
+            create_neighbour_events = self.create_neighbour_events_dynamic
+            get_neighbours = self.get_neighbours_dynamic
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         event_handler = self._handle_event_simple
         self.treating = []
@@ -1046,7 +1048,7 @@ class Scenario():
                     self.t = round(time, 4)  # issue: using round here is not ideal
                     #self._counts_over_time[int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
-                    event_handler(n_event)
+                    event_handler(n_event, get_neighbours, create_neighbour_events)
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
                         if with_halt_condition:
@@ -1170,7 +1172,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event)
+                        event_handler(n_event, get_neighbours, create_neighbour_events)
                         if self.t >= t_next_bin:
                             self.log[self.t] = copy(self.current_view)
                             t_next_bin += dt
@@ -1184,7 +1186,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event)
+                        event_handler(n_event, get_neighbours, create_neighbour_events)
                         if test_cond(self):
                             return 0
                     except Empty:
@@ -1197,7 +1199,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event)
+                        event_handler(n_event, get_neighbours, create_neighbour_events)
                         if self.t >= t_next_bin:
                             self.log[self.t] = copy(self.current_view)
                             t_next_bin += dt
@@ -1209,7 +1211,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event)
+                        event_handler(n_event, get_neighbours, create_neighbour_events)
                     except Empty:
                         self.log[self.t] = copy(self.current_view)
                         break

@@ -31,6 +31,7 @@ class ContactNetwork():
                     which reads: susceptible to the 'wild_type' strain, resistant to 'resistant_1' and susceptible to
                     all other strains ('Default').
         """
+        self.is_static = True  # set whether this is a static or a dynamic (time explicit network)
         suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
         self.graph_info = {}
         if hosts:
