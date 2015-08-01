@@ -1,10 +1,31 @@
-class ContactNetwork():
+class ContactStructure():
     class HostOrderError(Exception):
         pass
 
     class IncompatibleSusceptibilityError(Exception):
         pass
 
+    class UniqueIDError(Exception):
+        pass
+
+    def __init__(self, is_static):
+        self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
+        self._hosts = []  # will hold a list with all the present hosts (nodes)
+
+    def _check_integrity(self):
+        """
+        Check the integrity of the ensemble of hosts
+        """
+        if len(list(set(self._hosts))) != len(self._hosts):
+            raise self.UniqueIDError(
+                'Not all hosts have distinct IDs. Please provide a set of host with all unique name parameters'
+            )
+        else:
+            pass
+        return 0
+
+
+class ContactNetwork(ContactStructure):
     def __init__(self, hosts=None, graph=None, susceptible=1):
         """
         The contact_network class defines the appropriate Network of _hosts on which
@@ -13,6 +34,7 @@ class ContactNetwork():
             an argument. Note that if a list of _hosts is provided, they need to
             have the neighbours argument filled, otherwise no network is constructed.
             
+        :type susceptible: int, dict, list, float
         Arguments:
             - graph: an object from the graph class defined in the nw_construct package.
             
@@ -31,7 +53,7 @@ class ContactNetwork():
                     which reads: susceptible to the 'wild_type' strain, resistant to 'resistant_1' and susceptible to
                     all other strains ('Default').
         """
-        self.is_static = True  # set whether this is a static or a dynamic (time explicit network)
+        ContactStructure.__init__(self, is_static=True)
         suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
         self.graph_info = {}
         if hosts:
@@ -87,6 +109,10 @@ class ContactNetwork():
         self.susceptible = [[] for _ in xrange(len(self._susceptible))]
         # this is only filled up in the Scenario class in the Spreading module.
 
+    @property
+    def info(self):
+        return self.graph_info
+
     def update_topology(self, graph):
         """
         This method takes a new topology and updates the contact network accordingly.
@@ -108,40 +134,34 @@ class ContactNetwork():
         self.nn = graph.nn
         return None
 
-    @property
-    def info(self):
-        return self.graph_info
 
-    class UniqueIDError(Exception):
-        pass
+class ContactSequence(ContactStructure):
+    def __init__(self, ):
+        ContactStructure.__init__(self, is_static=False)
+        self.n  # just the number of nodes
+        self.nn  # a method taking a node, a start and stop time as argument returning all events
 
-    def _check_integrity(self):
-        """
-        Check the integrity of the ensemble of hosts
-        """
-        if len(list(set(self._hosts))) != len(self._hosts):
-            raise self.UniqueIDError(
-                'Not all hosts have distinct IDs. Please provide a set of host with all unique name parameters'
-            )
-        else:
-            pass
-        return 0
+    def nn(self, node_id, t_start, t_stop):
 
 
 class Host():
-    def __init__(self, ID, neighbours, susceptible):
+    def __init__(self, an_id, neighbours, susceptible):
         """
-        This class defines a single host.
-        
+                This class defines a single host.
+
         Arguments:
             - name: int, unique for each host in a contact_network
-            - neighbours: a numpy array of host ID's indicating all the neighbours of the host.
-            - susceptible: A float [0,1] or dict. If it is a dict, the key is the name of a strain and the corresponding
+            - neighbours:
+            - susceptible:
+        :param an_id: unique id for each host in a contact_network
+        :param neighbours: A numpy array of either host _id's indicating all the neighbours of the host or tuples
+        :param susceptible: A float [0,1] or dict. If it's a dict, the key is the name of a strain and the corresponding
                 value [0,1] indicates whether the host is susceptible or not. Additionally the key 'Default' can be
                 given. It will associate to all missing strains the specified value.
                 If a float is given, the value will be taken for all strains. This is equivalent to just give a
                     dict with a 'Default' value.
+        :return:
         """
-        self.ID = ID
+        self._id = an_id
         self.susceptible = susceptible
         self.neighbours = neighbours

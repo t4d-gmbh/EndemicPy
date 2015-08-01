@@ -11,7 +11,48 @@ Distribution = {'poisson': random.poisson, 'normal': random.normal, 'binomial': 
 allowed_dists = Distribution.keys()
 
 
-class Graph(object):
+class _Graph():
+    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
+        """
+            This is the basic class for a graph, containing but
+        :param nodes:
+        :param edges: Is either a set of tuples containing node ids or node ids and start and stop times
+        :return:
+        """
+        self._nodes = nodes if nodes is not None else []
+        self._edges = edges if edges is not None else []
+        self.degrees = None
+        if degrees is not None:
+            self.degrees = degrees
+        if edges is not None:
+            nn = [[] for _ in xrange(len(self._nodes))]
+            self.degrees = []
+            for edge in self._edges:
+                nn[edge[0]].append(edge[1])
+                nn[edge[1]].append(edge[0])
+            for i in xrange(len(nn)):
+                self.degrees.append(len(list(set(nn[i]))))
+            del nn
+        self.n = None
+        if n is not None:
+            self.n = n
+        if self._nodes is not None:
+            self.n = len(self._nodes)
+
+
+class TemporalGraph(_Graph):
+    def __init__(self):
+        _Graph.__init__(self)
+        # attributes:
+        self.t_start
+        self.t_stop
+        # self.n
+        # self.nn
+        self.event_queue
+        self.event_list
+
+
+class Graph(_Graph):
     def __init__(self, n=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
@@ -28,11 +69,11 @@ class Graph(object):
                 
            see self._create_graph for more information
         """
+        _Graph.__init__(self)
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
         self.permitted_types = allowed_dists + ["l_partition", 'full']
         self.is_directed = False
-        self.degrees = []
         # to do: pass usefull info in here.
         self._info = {}
         #for now only undirected networks
@@ -331,7 +372,7 @@ class Graph(object):
             Construct a list of nearest neighbors (nn) for each node.
             
         """
-        self.nn = [[] for i in xrange(self.n)]
+        self.nn = [[] for _ in xrange(self.n)]
         for edge in edge_list:
             self.nn[edge[0]].append(edge[1])
             self.nn[edge[1]].append(edge[0])

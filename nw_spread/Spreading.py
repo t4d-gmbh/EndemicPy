@@ -163,7 +163,7 @@ class Scenario():
             # of the old Strain
             self.current_infection_type[node_id] = 1  # set the type of infection to mutation
             self.simulation_log['mutations'].append(
-                (self.t, token_id, len(self.contact_network.nn[node_id]))
+                (self.t, token_id, len(self.contact_network.nn[node_id]))  # to do: this is just the degree!
             )
             self._count_per_strains[self.current_view[node_id]] -= 1
         else:
@@ -202,6 +202,7 @@ class Scenario():
         :param token_id:
         :return:
         """
+        # to do: a distinction between static and dynamic is probably not even needed for this.
         raise ValueError('This is not implemented yet')
 
     def _get_neighbours_dynamic(self, node_id, token_id):
@@ -213,7 +214,7 @@ class Scenario():
         :return:
         """
         recover_time = self.pathogen.rec_dists[token_id].get_val()
-        nn, start_times, stop_times = self.contact_network.get_intervals(node_id, self.t, recover_time)
+        nn, start_times, stop_times = self.contact_network.nn(node_id, self.t, recover_time)
         # this should return id_list, start_array, stop_array
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
         # cut the start_times with the current time:
