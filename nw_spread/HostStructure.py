@@ -84,7 +84,7 @@ class ContactNetwork(ContactStructure):
             _hosts.sort()
             self._hosts = _hosts
         elif graph:
-            self.graph_info = graph._info
+            self.graph_info = graph.info
             self._hosts = range(graph.n)
             self.n = len(self._hosts)
             self.nn = graph.nn
@@ -108,6 +108,9 @@ class ContactNetwork(ContactStructure):
             )
         self.susceptible = [[] for _ in xrange(len(self._susceptible))]
         # this is only filled up in the Scenario class in the Spreading module.
+
+    def get_events(self, node_id):
+        return self.nn[node_id]
 
     @property
     def info(self):
@@ -136,12 +139,15 @@ class ContactNetwork(ContactStructure):
 
 
 class ContactSequence(ContactStructure):
-    def __init__(self, ):
+    def __init__(self, temporal_graph=None):
         ContactStructure.__init__(self, is_static=False)
+        if temporal_graph:
+            self.graph = temporal_graph
         self.n  # just the number of nodes
         self.nn  # a method taking a node, a start and stop time as argument returning all events
 
-    def nn(self, node_id, t_start, t_stop):
+    def get_events(self, node_id, start_time, stop_time):
+        return self.graph.get_events(node_id, start_time, stop_time)
 
 
 class Host():

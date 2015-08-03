@@ -1,6 +1,7 @@
 __author__ = 'Jonas I Liechti'
 import numpy.random as random
 from numpy import array
+import numpy as np
 from Queue import Queue
 from copy import copy
 
@@ -10,6 +11,10 @@ Distribution = {'poisson': random.poisson, 'normal': random.normal, 'binomial': 
                 'power': random.power, 'weibull': random.weibull}
 allowed_dists = Distribution.keys()
 
+
+class InvalidArgumentError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
 
 class _Graph():
     def __init__(self, nodes=None, n=None, edges=None, degrees=None):
@@ -38,18 +43,145 @@ class _Graph():
             self.n = n
         if self._nodes is not None:
             self.n = len(self._nodes)
+        self.info = {}  # dict containing some info
 
 
 class TemporalGraph(_Graph):
-    def __init__(self):
+    def __init__(self, source, **params):
         _Graph.__init__(self)
+        self.is_static = False
         # attributes:
-        self.t_start
-        self.t_stop
+        #self.t_start
+        #self.t_stop
         # self.n
         # self.nn
-        self.event_queue
-        self.event_list
+        #self.event_array  # use this instead of a queue (filter it later for start and stop times
+        # self.event_queue
+        #self.event_list
+        self.load(source, **params)
+
+    def load(self, source, **params):
+        # use memmap for large files?
+        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.memmap.html
+        """
+
+        Arguments:
+
+        :param source:
+        :param params: Several arguments depending on the type of
+                    the source argument.
+
+                    In any case:
+                        Mandatory:
+                            start_tag: Name of the column containing the
+                                start time/frame tag.
+                            stop_tag: Name of the column containing the
+                                stop time/frame tag.
+                            node1_tag: Name of the column with the first participant
+                            node2_tag: Name of the column with the second participant
+                            delimiter: The string delimiting the columns (default: 'TAB'). You can use the actual
+                                string e.g. '\\t' for 'TAB" or choose from: ('TAB', 'space')
+                            string_values: A list of all the columns containing strings as values. All the
+                                other columns will be converted to floats.
+                        Optional:
+
+                            directed: True/False whether the interactions
+                                are directed or not.
+
+                    If source is a filename
+                        Optional:
+                            permitted_values: Default = {}
+                                If 'start_tag' is given, only interactions with a start_tag bigger than this value
+                                    will be considered.
+
+                    If source is an EventQueue:
+                        Optional:
+                            T_start: The time/frame at which the scenario
+                                starts.
+                            T_end: The time/frame at which the scenario
+                                ends.
+                            nodes: List of considered nodes.
+                                Note: all other nodes are ignored as well as
+                                interactions with them.
+        :return:
+        """
+        if isinstance(source, str):  # it is a file
+            try:
+                with open(source, 'r') as f:
+                    pass
+            except IOError:
+                InvalidArgumentError('The file specified does not exist')
+            for arg in ['start_tag', 'stop_tag', 'node1_tag', 'node2_tag', 'string_values', 'delimiter']:
+                try:
+                    if arg == 'delimiter':
+                        if params[arg] == 'TAB':
+                            delim = '\t'
+                        elif params[arg] == 'space':
+                            delim = ' '
+                        else:
+                            delim = params[arg]
+                        setattr(self, '_file_delimiter', delim)
+                        del delim
+                    if isinstance(params[arg], str):
+                        setattr(self, arg, params[arg])
+                    elif isinstance(params[arg], (list, tuple)):
+                        setattr(self, arg, params[arg])
+                    else:
+                        setattr(self, arg, params[arg])
+                except KeyError:
+                    raise InvalidArgumentError('The mandatory argument <%s> was not given.' % arg)
+            # each event will have this structure
+            self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
+            with open(source, 'r') as f:
+                self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
+                print self._file_header
+                self._file_column_order = {name: i for i, name in enumerate(self._file_header)}
+                print self._event_structure
+                #self._file_column_map = {i: self.}
+                types = [(tag, int) for tag in [
+                        self.node1_tag, self.node2_tag
+                    ]] + [(tag, np.float) for tag in [
+                        self.start_tag, self.stop_tag
+                    ]]
+                print types
+                data = np.genfromtxt(
+                    f,
+                    delimiter= self._file_delimiter,
+                    unpack=False,  # not sure about that, if for a, b, c = ... syntax
+                    autostrip=True,
+                    comments='#',
+                    names=', '.join(self._file_header),
+                    # specify the types for all tags present in self._event_structure
+                    dtype=None,
+                    usecols=tuple(self._event_structure)
+                )
+                self.starts = data[self.start_tag]
+                self.stops = data[self.stop_tag]
+                self.node1s = data[self.node1_tag]
+                self.node2s = data[self.node2_tag]
+        else:  # source must be an EventQueue then
+            # to do: read from event queue
+            pass
+
+    def get_events(self, node_id, start_time, stop_time):
+        the_filter = np.logical_and(
+            np.logical_and(
+                start_time <= self.starts,
+                stop_time > self.starts
+            ), np.logical_or(
+                node_id == self.node1s,
+                node_id == self.node2s
+            )
+        )
+        nn1 = self.node1s.view()[the_filter]
+        nn2 = self.node2s.view()[the_filter]
+
+        nn = np.where(
+            node_id != nn1,
+            nn1,
+            nn2
+        )
+        return self.starts.view()[the_filter], self.stops.view()[the_filter], nn
 
 
 class Graph(_Graph):
@@ -70,6 +202,7 @@ class Graph(_Graph):
            see self._create_graph for more information
         """
         _Graph.__init__(self)
+        self.is_static = True
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
         self.permitted_types = allowed_dists + ["l_partition", 'full']
