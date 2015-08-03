@@ -1,3 +1,7 @@
+__author__ = 'Jonas I Liechti'
+import numpy as np
+
+
 class ContactStructure():
     class HostOrderError(Exception):
         pass
@@ -8,9 +12,70 @@ class ContactStructure():
     class UniqueIDError(Exception):
         pass
 
-    def __init__(self, is_static):
+    def __init__(self, from_object, susceptible=1, is_static=True):
         self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
-        self._hosts = []  # will hold a list with all the present hosts (nodes)
+        suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
+        if isinstance(from_object, list):  # assume it is a list of Host objects:
+            len_hosts = len(from_object)
+            self._hosts = []
+            self.nn = [[] for _ in xrange(len_hosts)]
+            self._susceptible = [{} for _ in xrange(len_hosts)]
+            for a_host in hosts:
+                self._hosts.append(a_host.ID)
+            self._hosts.sort()
+            self.n = len(self._hosts)  #gives the number of hosts
+            self._check_integrity()
+            id_map = {}
+            for val in self._hosts:
+                id_map[val] = self._hosts.index(val)
+            for a_host in from_object:
+                its_id = id_map[a_host.ID]
+                self.nn[its_id] = a_host.neighbours
+                its_default = suscept_default
+                susceptibility = a_host.susceptible
+                if 'Default' in susceptibility:
+                    its_default = susceptibility.pop('Default')
+                self._susceptible[its_id]['Default'] = its_default
+                for strain_name in susceptibility.keys():
+                    self._susceptible[its_id][strain_name] = susceptibility[strain_name]
+                    #self.susceptible[its_id] = a_host.susceptible
+            _hosts = id_map.values()
+            _hosts.sort()
+            self._hosts = _hosts
+        elif True:  # it is a _Graph object # to do: set condition on being of _Graph class (with super?)
+            self.is_static = from_object.is_static
+            self.graph_info = from_object.info
+            self._hosts = range(from_object.n)
+            self.n = from_object.n
+            if self.is_static:
+                self.nn = from_object.nn
+            else:
+                self.nn = None
+            if type(susceptible) is dict:
+                if 'Default' not in susceptible:
+                    susceptible['Default'] = suscept_default
+                self._susceptible = [susceptible for _ in xrange(from_object.n)]
+            elif type(susceptible) is float or type(susceptible) is int:
+                self._susceptible = [{'Default': susceptible} for _ in xrange(from_object.n)]
+            elif susceptible is list:
+                self._susceptible = []
+                for a_state in susceptible:
+                    self._susceptible.append(a_state)
+            else:
+                raise self.IncompatibleSusceptibilityError(
+                    """Susceptible must either be a list a dict or a float/int. Please refer to the class description\
+                     for more details.""")
+        else:
+            raise AttributeError(
+                'Neither a graph nor a lists of hosts is provided.\n\n%s' % self.__doc__
+            )
+        self.graph_info = {}
+        # this is only filled up in the Scenario class in the Spreading module.
+        self.susceptible = [[] for _ in xrange(len(self._susceptible))]
+
+    @property
+    def info(self):
+        return self.graph_info
 
     def _check_integrity(self):
         """
@@ -28,7 +93,7 @@ class ContactStructure():
 class ContactNetwork(ContactStructure):
     def __init__(self, hosts=None, graph=None, susceptible=1):
         """
-        The contact_network class defines the appropriate Network of _hosts on which
+        The contact_structure class defines the appropriate Network of _hosts on which
             pathogens will spread.
         It either takes a graph from nw_construct package or a list of hosts as
             an argument. Note that if a list of _hosts is provided, they need to
@@ -53,74 +118,17 @@ class ContactNetwork(ContactStructure):
                     which reads: susceptible to the 'wild_type' strain, resistant to 'resistant_1' and susceptible to
                     all other strains ('Default').
         """
-        ContactStructure.__init__(self, is_static=True)
-        suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
-        self.graph_info = {}
-        if hosts:
-            len_hosts = len(hosts)
-            self._hosts = []
-            self.nn = [[] for _ in xrange(len_hosts)]
-            self._susceptible = [{} for _ in xrange(len_hosts)]
-            for a_host in hosts:
-                self._hosts.append(a_host.ID)
-            self._hosts.sort()
-            self.n = len(self._hosts)  #gives the number of hosts
-            self._check_integrity()
-            id_map = {}
-            for val in self._hosts:
-                id_map[val] = self._hosts.index(val)
-            for a_host in hosts:
-                its_id = id_map[a_host.ID]
-                self.nn[its_id] = a_host.neighbours
-                its_default = suscept_default
-                susceptibility = a_host.susceptible
-                if 'Default' in susceptibility:
-                    its_default = susceptibility.pop('Default')
-                self._susceptible[its_id]['Default'] = its_default
-                for strain_name in susceptibility.keys():
-                    self._susceptible[its_id][strain_name] = susceptibility[strain_name]
-                    #self.susceptible[its_id] = a_host.susceptible
-            _hosts = id_map.values()
-            _hosts.sort()
-            self._hosts = _hosts
-        elif graph:
-            self.graph_info = graph.info
-            self._hosts = range(graph.n)
-            self.n = len(self._hosts)
-            self.nn = graph.nn
-            if type(susceptible) is dict:
-                if 'Default' not in susceptible:
-                    susceptible['Default'] = suscept_default
-                self._susceptible = [susceptible for _ in xrange(graph.n)]
-            elif type(susceptible) is float or type(susceptible) is int:
-                self._susceptible = [{'Default': susceptible} for _ in xrange(graph.n)]
-            elif susceptible is list:
-                self._susceptible = []
-                for a_state in susceptible:
-                    self._susceptible.append(a_state)
-            else:
-                raise self.IncompatibleSusceptibilityError(
-                    """Susceptible must either be a list a dict or a float/int. Please refer to the class description\
-                     for more details.""")
-        else:
-            raise AttributeError(
-                'Neither a graph nor a lists of hosts is provided.\n\n%s' % self.__doc__
-            )
-        self.susceptible = [[] for _ in xrange(len(self._susceptible))]
-        # this is only filled up in the Scenario class in the Spreading module.
+        ContactStructure.__init__(self, from_object=graph if graph else hosts, is_static=True)
 
     def get_events(self, node_id):
         return self.nn[node_id]
 
-    @property
-    def info(self):
-        return self.graph_info
 
     def update_topology(self, graph):
         """
         This method takes a new topology and updates the contact network accordingly.
         Note: the parameter graph must be a Graph from nw_construct module that shares the same properties
-        as the previousely defined contact_network, with the exception of the node linking.
+        as the previousely defined contact_structure, with the exception of the node linking.
 
         Usage e.g.:
             my_graph = nw_construct.Graph(...)
@@ -139,15 +147,34 @@ class ContactNetwork(ContactStructure):
 
 
 class ContactSequence(ContactStructure):
-    def __init__(self, temporal_graph=None):
-        ContactStructure.__init__(self, is_static=False)
-        if temporal_graph:
-            self.graph = temporal_graph
-        self.n  # just the number of nodes
-        self.nn  # a method taking a node, a start and stop time as argument returning all events
+    def __init__(self, temporal_graph=None, **params):
+        self.starts = temporal_graph.starts
+        self.stops = temporal_graph.stops
+        self.node1s = temporal_graph.node1s
+        self.node2s = temporal_graph.node2s
+        self.t_start = params.get('t_start', np.min(self.starts))
+        self.t_stop = params.get('t_stop', np.max(self.stops))
+        ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
 
     def get_events(self, node_id, start_time, stop_time):
-        return self.graph.get_events(node_id, start_time, stop_time)
+        the_filter = np.logical_and(
+            np.logical_and(
+                start_time <= self.starts,
+                stop_time > self.starts
+            ), np.logical_or(
+                node_id == self.node1s,
+                node_id == self.node2s
+            )
+        )
+        nn1 = self.node1s.view()[the_filter]
+        nn2 = self.node2s.view()[the_filter]
+
+        nn = np.where(
+            node_id != nn1,
+            nn1,
+            nn2
+        )
+        return self.starts.view()[the_filter], self.stops.view()[the_filter], nn
 
 
 class Host():
@@ -156,10 +183,10 @@ class Host():
                 This class defines a single host.
 
         Arguments:
-            - name: int, unique for each host in a contact_network
+            - name: int, unique for each host in a contact_structure
             - neighbours:
             - susceptible:
-        :param an_id: unique id for each host in a contact_network
+        :param an_id: unique id for each host in a contact_structure
         :param neighbours: A numpy array of either host _id's indicating all the neighbours of the host or tuples
         :param susceptible: A float [0,1] or dict. If it's a dict, the key is the name of a strain and the corresponding
                 value [0,1] indicates whether the host is susceptible or not. Additionally the key 'Default' can be

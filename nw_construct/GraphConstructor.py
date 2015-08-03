@@ -24,11 +24,12 @@ class _Graph():
         :param edges: Is either a set of tuples containing node ids or node ids and start and stop times
         :return:
         """
-        self._nodes = nodes if nodes is not None else []
-        self._edges = edges if edges is not None else []
+        self._nodes = nodes if nodes is not None else np.array([])
+        self._edges = edges if edges is not None else np.array([])
         self.degrees = None
         if degrees is not None:
             self.degrees = degrees
+        # to do: this is not ideal when working with np.array's
         if edges is not None:
             nn = [[] for _ in xrange(len(self._nodes))]
             self.degrees = []
@@ -45,22 +46,31 @@ class _Graph():
             self.n = len(self._nodes)
         self.info = {}  # dict containing some info
 
+# to do: id map is still not working
+def get_id(edge_nodes, an_id):
+    return np.where(edge_nodes==an_id)
+v_get_id = np.vectorize(get_id)
 
 class TemporalGraph(_Graph):
     def __init__(self, source, **params):
-        _Graph.__init__(self)
+        #_Graph.__init__(self)
         self.is_static = False
-        # attributes:
-        #self.t_start
-        #self.t_stop
-        # self.n
-        # self.nn
-        #self.event_array  # use this instead of a queue (filter it later for start and stop times
-        # self.event_queue
-        #self.event_list
-        self.load(source, **params)
+        if isinstance(source, str):  # it is a file
+            self._load(source, **params)
+        else:  # source must be an EventQueue then
+            # to do: read from event queue
+            # should also get self.starts, ...
+            pass
+        self.t_start = params.get('t_start', np.min(self.starts))
+        self.t_stop = params.get('t_stop', np.max(self.stops))
+        n = np.size(np.union1d(self.node1s, self.node2s))
+        ids = np.arange(n)
+        # now we need to remap the node ids
+        print v_get_id(self.node1s,ids)
+        _Graph.__init__(self, n=n)
 
-    def load(self, source, **params):
+
+    def _load(self, source, **params):
         # use memmap for large files?
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.memmap.html
         """
@@ -105,83 +115,60 @@ class TemporalGraph(_Graph):
                                 interactions with them.
         :return:
         """
-        if isinstance(source, str):  # it is a file
-            try:
-                with open(source, 'r') as f:
-                    pass
-            except IOError:
-                InvalidArgumentError('The file specified does not exist')
-            for arg in ['start_tag', 'stop_tag', 'node1_tag', 'node2_tag', 'string_values', 'delimiter']:
-                try:
-                    if arg == 'delimiter':
-                        if params[arg] == 'TAB':
-                            delim = '\t'
-                        elif params[arg] == 'space':
-                            delim = ' '
-                        else:
-                            delim = params[arg]
-                        setattr(self, '_file_delimiter', delim)
-                        del delim
-                    if isinstance(params[arg], str):
-                        setattr(self, arg, params[arg])
-                    elif isinstance(params[arg], (list, tuple)):
-                        setattr(self, arg, params[arg])
-                    else:
-                        setattr(self, arg, params[arg])
-                except KeyError:
-                    raise InvalidArgumentError('The mandatory argument <%s> was not given.' % arg)
-            # each event will have this structure
-            self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
+
+        try:
             with open(source, 'r') as f:
-                self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
-                print self._file_header
-                self._file_column_order = {name: i for i, name in enumerate(self._file_header)}
-                print self._event_structure
-                #self._file_column_map = {i: self.}
-                types = [(tag, int) for tag in [
-                        self.node1_tag, self.node2_tag
-                    ]] + [(tag, np.float) for tag in [
-                        self.start_tag, self.stop_tag
-                    ]]
-                print types
-                data = np.genfromtxt(
-                    f,
-                    delimiter= self._file_delimiter,
-                    unpack=False,  # not sure about that, if for a, b, c = ... syntax
-                    autostrip=True,
-                    comments='#',
-                    names=', '.join(self._file_header),
-                    # specify the types for all tags present in self._event_structure
-                    dtype=None,
-                    usecols=tuple(self._event_structure)
-                )
-                self.starts = data[self.start_tag]
-                self.stops = data[self.stop_tag]
-                self.node1s = data[self.node1_tag]
-                self.node2s = data[self.node2_tag]
-        else:  # source must be an EventQueue then
-            # to do: read from event queue
-            pass
-
-    def get_events(self, node_id, start_time, stop_time):
-        the_filter = np.logical_and(
-            np.logical_and(
-                start_time <= self.starts,
-                stop_time > self.starts
-            ), np.logical_or(
-                node_id == self.node1s,
-                node_id == self.node2s
+                pass
+        except IOError:
+            InvalidArgumentError('The file specified does not exist')
+        for arg in ['start_tag', 'stop_tag', 'node1_tag', 'node2_tag', 'string_values', 'delimiter']:
+            try:
+                if arg == 'delimiter':
+                    if params[arg] == 'TAB':
+                        delim = '\t'
+                    elif params[arg] == 'space':
+                        delim = ' '
+                    else:
+                        delim = params[arg]
+                    setattr(self, '_file_delimiter', delim)
+                    del delim
+                if isinstance(params[arg], str):
+                    setattr(self, arg, params[arg])
+                elif isinstance(params[arg], (list, tuple)):
+                    setattr(self, arg, params[arg])
+                else:
+                    setattr(self, arg, params[arg])
+            except KeyError:
+                raise InvalidArgumentError('The mandatory argument <%s> was not given.' % arg)
+        # each event will have this structure
+        self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
+        with open(source, 'r') as f:
+            self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
+            print self._file_header
+            self._file_column_order = {name: i for i, name in enumerate(self._file_header)}
+            print self._event_structure
+            #self._file_column_map = {i: self.}
+            types = [(tag, int) for tag in [
+                    self.node1_tag, self.node2_tag
+                ]] + [(tag, np.float) for tag in [
+                    self.start_tag, self.stop_tag
+                ]]
+            print types
+            data = np.genfromtxt(
+                f,
+                delimiter= self._file_delimiter,
+                unpack=False,  # not sure about that, if for a, b, c = ... syntax
+                autostrip=True,
+                comments='#',
+                names=', '.join(self._file_header),
+                # specify the types for all tags present in self._event_structure
+                dtype=None,
+                usecols=tuple(self._event_structure)
             )
-        )
-        nn1 = self.node1s.view()[the_filter]
-        nn2 = self.node2s.view()[the_filter]
-
-        nn = np.where(
-            node_id != nn1,
-            nn1,
-            nn2
-        )
-        return self.starts.view()[the_filter], self.stops.view()[the_filter], nn
+            self.starts = data[self.start_tag]
+            self.stops = data[self.stop_tag]
+            self.node1s = data[self.node1_tag]
+            self.node2s = data[self.node2_tag]
 
 
 class Graph(_Graph):
