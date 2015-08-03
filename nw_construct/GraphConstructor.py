@@ -42,14 +42,10 @@ class _Graph():
         self.n = None
         if n is not None:
             self.n = n
-        if self._nodes is not None:
+        if np.size(self._nodes):
             self.n = len(self._nodes)
         self.info = {}  # dict containing some info
 
-# to do: id map is still not working
-def get_id(edge_nodes, an_id):
-    return np.where(edge_nodes==an_id)
-v_get_id = np.vectorize(get_id)
 
 class TemporalGraph(_Graph):
     def __init__(self, source, **params):
@@ -63,12 +59,17 @@ class TemporalGraph(_Graph):
             pass
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        n = np.size(np.union1d(self.node1s, self.node2s))
-        ids = np.arange(n)
-        # now we need to remap the node ids
-        print v_get_id(self.node1s,ids)
-        _Graph.__init__(self, n=n)
+        all_nodes = list(np.union1d(self.node1s, self.node2s))
+        n = len(all_nodes)
 
+        def get_id(an_id):
+            return all_nodes.index(an_id)
+        v_get_id = np.vectorize(get_id)
+
+        self.node1s = v_get_id(self.node1s)
+        self.node2s = v_get_id(self.node2s)
+        # now we need to remap the node ids
+        _Graph.__init__(self, n=n)
 
     def _load(self, source, **params):
         # use memmap for large files?
@@ -144,19 +145,19 @@ class TemporalGraph(_Graph):
         self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
         with open(source, 'r') as f:
             self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
-            print self._file_header
+            #print self._file_header
             self._file_column_order = {name: i for i, name in enumerate(self._file_header)}
-            print self._event_structure
+            #print self._event_structure
             #self._file_column_map = {i: self.}
             types = [(tag, int) for tag in [
                     self.node1_tag, self.node2_tag
                 ]] + [(tag, np.float) for tag in [
                     self.start_tag, self.stop_tag
                 ]]
-            print types
+            #print types
             data = np.genfromtxt(
                 f,
-                delimiter= self._file_delimiter,
+                delimiter=self._file_delimiter,
                 unpack=False,  # not sure about that, if for a, b, c = ... syntax
                 autostrip=True,
                 comments='#',

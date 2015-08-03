@@ -149,7 +149,7 @@ class Scenario():
             inf_times[inf_times < stop_times],
         )
 
-    def _create_neighbour_events_static(self, inf_event, nn, inf_times, node_id, token_id):
+    def _create_neighbour_events(self, inf_event, nn, inf_times, node_id, token_id):
         """
         This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
             with a static network
@@ -164,7 +164,10 @@ class Scenario():
             # of the old Strain
             self.current_infection_type[node_id] = 1  # set the type of infection to mutation
             self.simulation_log['mutations'].append(
-                (self.t, token_id, len(self.contact_structure.nn[node_id]))  # to do: this is just the degree!
+                # to do: if we have a dynamic network the degree is replaced with the node_id, ideall we should report
+                # the activity of this node
+                (self.t, token_id, len(self.contact_structure.nn[node_id])) if self.contact_structure.is_static else
+                (self.t, token_id, node_id)
             )
             self._count_per_strains[self.current_view[node_id]] -= 1
         else:
@@ -192,20 +195,6 @@ class Scenario():
         # self.t and the recover_time in the static case
         return nn, recover_time, inf_times, 0., recover_time
 
-    def _create_neighbour_events_dynamic(self, inf_event, nn, inf_times, node_id, token_id):
-        """
-        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
-            with a dynamic network
-        :param inf_event:
-        :param nn:
-        :param inf_times:
-        :param node_id:
-        :param token_id:
-        :return:
-        """
-        # to do: a distinction between static and dynamic is probably not even needed for this.
-        raise ValueError('This is not implemented yet')
-
     def _get_neighbours_dynamic(self, node_id, token_id):
         """
         This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
@@ -215,7 +204,7 @@ class Scenario():
         :return:
         """
         recover_time = self.pathogen.rec_dists[token_id].get_val()
-        nn, start_times, stop_times = self.contact_structure.get_event(node_id, self.t, recover_time)
+        nn, start_times, stop_times = self.contact_structure.get_events(node_id, self.t, recover_time)
         # this should return id_list, start_array, stop_array
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
         # cut the start_times with the current time:
@@ -467,7 +456,7 @@ class Scenario():
                         self._initiate_infection.__doc__
                     )
                 )
-            self._init_queue()
+            #self._init_queue()
         return 0
 
     # this method is not used anymore. Could be removed.
@@ -510,7 +499,7 @@ class Scenario():
 
     # method to handle events if we have both treatment and mutation/selection. Maybe best start with the method
     # self._handle_event_simple as this is for the most trivial case (no treatment, no selection/mutation)
-    def _handle_event_combined(self, an_event, get_neighbours, create_neighbour_events):  #with selection & treatment
+    def _handle_event_combined(self, an_event, get_neighbours):  #with selection & treatment
         """
         This method handles the events in a spreading process with selection (mutation + selection) and treatment.
 
@@ -568,11 +557,11 @@ class Scenario():
                     # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
-                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
     # no selection, no treatment (but might still need to handle selections)
-    def _handle_event_simple(self, an_event, get_neighbours, create_neighbour_events):
+    def _handle_event_simple(self, an_event, get_neighbours):
         """
         This method handles events in a spreading process without treatment nor selection.
 
@@ -601,10 +590,10 @@ class Scenario():
                     # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))  # put the recover event
-                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
-    def _handle_event_selection(self, an_event, get_neighbours, create_neighbour_events):  #with only selection
+    def _handle_event_selection(self, an_event, get_neighbours):  #with only selection
         """
         This method handles events in a spreading process with selection (mutation + selection) but without treatment.
 
@@ -643,10 +632,10 @@ class Scenario():
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
                     # or the mutation event.
-                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
-    def _handle_event_treatment(self, an_event, get_neighbours, create_neighbour_events):  # with only treatment
+    def _handle_event_treatment(self, an_event, get_neighbours):  # with only treatment
         """
         This method handles the events in a spreading process with treatment but without selection.
 
@@ -698,7 +687,7 @@ class Scenario():
                     # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
-                    create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
     # this method makes things moving.
@@ -895,8 +884,8 @@ class Scenario():
                     mode = 'keep'
                 # write it to the simulation log
                 #print self.current_view
-                print self.current_view.count(0), self.current_view.count(1)
-                print self._count_per_strains
+                #print self.current_view.count(0), self.current_view.count(1)
+                #print self._count_per_strains
                 try:
                     self.simulation_log['modifications']['shuffle'] = (self.t, shuffle)
                 except KeyError:
@@ -1031,10 +1020,8 @@ class Scenario():
         #)
         # determine if the network is static or dynamic and set the appropriate methods.
         if self.contact_structure.is_static:
-            create_neighbour_events = self._create_neighbour_events_static
             get_neighbours = self._get_neighbours_static
         else:
-            create_neighbour_events = self._create_neighbour_events_dynamic
             get_neighbours = self._get_neighbours_dynamic
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         event_handler = self._handle_event_simple
@@ -1099,7 +1086,7 @@ class Scenario():
                     self.t = round(time, 4)  # issue: using round here is not ideal
                     #self._counts_over_time[int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
-                    event_handler(n_event, get_neighbours, create_neighbour_events)
+                    event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
                         if with_halt_condition:
@@ -1223,7 +1210,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event, get_neighbours, create_neighbour_events)
+                        event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
                             self.log[self.t] = copy(self.current_view)
                             t_next_bin += dt
@@ -1236,8 +1223,9 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
+
                         self.t = round(time, 4)
-                        event_handler(n_event, get_neighbours, create_neighbour_events)
+                        event_handler(n_event, get_neighbours)
                         if test_cond(self):
                             return 0
                     except Empty:
@@ -1250,7 +1238,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event, get_neighbours, create_neighbour_events)
+                        event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
                             self.log[self.t] = copy(self.current_view)
                             t_next_bin += dt
@@ -1262,7 +1250,7 @@ class Scenario():
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, 4)
-                        event_handler(n_event, get_neighbours, create_neighbour_events)
+                        event_handler(n_event, get_neighbours)
                     except Empty:
                         self.log[self.t] = copy(self.current_view)
                         break
@@ -1438,43 +1426,54 @@ class Scenario():
                 # 'degree_count': degree_count,
             }
         }
-        degrees = []
-        for node in xrange(self.contact_structure.n):
-            degrees.append(
-                len(
-                    self.contact_structure.nn[node]
+        if self.contact_structure.is_static:
+            degrees = []
+            for node in xrange(self.contact_structure.n):
+                degrees.append(
+                    len(
+                        self.contact_structure.nn[node]
+                    )
                 )
-            )
-        degree_count = {}
-        observed_degrees = list(set(degrees))
-        # Get nodes per degree
-        nodes_per_degree = {deg: [] for deg in observed_degrees}
-        for node_id in xrange(self.contact_structure.n):
-            nodes_per_degree[degrees[node_id]].append(node_id)
-        for a_degree in observed_degrees:
-            degree_count[a_degree] = len(nodes_per_degree[a_degree])
-        _output['network']['degree_count'] = degree_count
+            degree_count = {}
+            observed_degrees = list(set(degrees))
+            # Get nodes per degree
+            nodes_per_degree = {deg: [] for deg in observed_degrees}
+            for node_id in xrange(self.contact_structure.n):
+                nodes_per_degree[degrees[node_id]].append(node_id)
+            for a_degree in observed_degrees:
+                degree_count[a_degree] = len(nodes_per_degree[a_degree])
+            _output['network']['degree_count'] = degree_count
+        else:
+            # to do: what output for a dynamic network?
+            pass
         # Run for each strain (we could also do the for strain_id ... inside the 2nd for loop below
         for strain_id in self.pathogen.names.keys():
             name = self.pathogen.names[strain_id]
             _output[name] = {}
             count = self.current_view.count(strain_id)
             _output[name]['count'] = copy(count)
-            strain_degree_count = {}
             strain_acquired = 0
-            strain_degree_acquired = {}
-            for a_degree in observed_degrees:
-                strain_degree_count[a_degree] = 0
-                strain_degree_acquired[a_degree] = 0
-                for node_id in nodes_per_degree[a_degree]:
+            if self.contact_structure.is_static:
+                strain_degree_count = {}
+                strain_degree_acquired = {}
+                for a_degree in observed_degrees:
+                    strain_degree_count[a_degree] = 0
+                    strain_degree_acquired[a_degree] = 0
+                    for node_id in nodes_per_degree[a_degree]:
+                        if self.current_view[node_id] == strain_id:
+                            strain_degree_count[a_degree] += 1
+                            if self.current_infection_type[node_id] == 1:
+                                strain_acquired += 1
+                                strain_degree_acquired[a_degree] += 1
+                _output[name]['degree_count'] = copy(strain_degree_count)
+                _output[name]['acquired'] = copy(strain_acquired)
+                _output[name]['degree_acquired'] = copy(strain_degree_acquired)
+            else:
+                for node_id in xrange(self.contact_structure.n):
                     if self.current_view[node_id] == strain_id:
-                        strain_degree_count[a_degree] += 1
                         if self.current_infection_type[node_id] == 1:
                             strain_acquired += 1
-                            strain_degree_acquired[a_degree] += 1
-            _output[name]['degree_count'] = copy(strain_degree_count)
-            _output[name]['acquired'] = copy(strain_acquired)
-            _output[name]['degree_acquired'] = copy(strain_degree_acquired)
+                _output[name]['acquired'] = copy(strain_acquired)
         return _output
 
     def _old_get_outcome(self):

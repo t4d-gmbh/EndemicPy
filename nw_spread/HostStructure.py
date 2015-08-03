@@ -20,7 +20,7 @@ class ContactStructure():
             self._hosts = []
             self.nn = [[] for _ in xrange(len_hosts)]
             self._susceptible = [{} for _ in xrange(len_hosts)]
-            for a_host in hosts:
+            for a_host in from_object:
                 self._hosts.append(a_host.ID)
             self._hosts.sort()
             self.n = len(self._hosts)  #gives the number of hosts
@@ -123,7 +123,6 @@ class ContactNetwork(ContactStructure):
     def get_events(self, node_id):
         return self.nn[node_id]
 
-
     def update_topology(self, graph):
         """
         This method takes a new topology and updates the contact network accordingly.
@@ -156,7 +155,8 @@ class ContactSequence(ContactStructure):
         self.t_stop = params.get('t_stop', np.max(self.stops))
         ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
 
-    def get_events(self, node_id, start_time, stop_time):
+    def get_events(self, node_id, start_time, delta_t):
+        stop_time = start_time + delta_t
         the_filter = np.logical_and(
             np.logical_and(
                 start_time <= self.starts,
@@ -174,7 +174,7 @@ class ContactSequence(ContactStructure):
             nn1,
             nn2
         )
-        return self.starts.view()[the_filter], self.stops.view()[the_filter], nn
+        return nn, self.starts.view()[the_filter], self.stops.view()[the_filter]
 
 
 class Host():
