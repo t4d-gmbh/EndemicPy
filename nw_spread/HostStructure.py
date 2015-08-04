@@ -156,10 +156,18 @@ class ContactSequence(ContactStructure):
         ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
 
     def get_events(self, node_id, start_time, delta_t):
+        """
+        Returns a view of the start times and stop times as well as the involved nodes of all event vor a given
+        node within a time range (start_time, start_time + delta_t)
+        :param node_id:
+        :param start_time:
+        :param delta_t:
+        :return:
+        """
         stop_time = start_time + delta_t
         the_filter = np.logical_and(
             np.logical_and(
-                start_time <= self.starts,
+                start_time <= self.stops,
                 stop_time > self.starts
             ), np.logical_or(
                 node_id == self.node1s,
