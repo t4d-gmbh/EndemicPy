@@ -145,16 +145,6 @@ class TemporalGraph(_Graph):
         self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
         with open(source, 'r') as f:
             self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
-            #print self._file_header
-            self._file_column_order = {name: i for i, name in enumerate(self._file_header)}
-            #print self._event_structure
-            #self._file_column_map = {i: self.}
-            types = [(tag, int) for tag in [
-                    self.node1_tag, self.node2_tag
-                ]] + [(tag, np.float) for tag in [
-                    self.start_tag, self.stop_tag
-                ]]
-            #print types
             data = np.genfromtxt(
                 f,
                 delimiter=self._file_delimiter,
@@ -162,10 +152,14 @@ class TemporalGraph(_Graph):
                 autostrip=True,
                 comments='#',
                 names=', '.join(self._file_header),
-                # specify the types for all tags present in self._event_structure
+                # try to determine type independently
                 dtype=None,
-                usecols=tuple(self._event_structure)
+                usecols=tuple(filter(lambda x: x in self._event_structure, self._file_header))
             )
+            print data[self.start_tag]
+            print data[self.stop_tag]
+            print data[self.node1_tag]
+            print data[self.node2_tag]
             self.starts = data[self.start_tag]
             self.stops = data[self.stop_tag]
             self.node1s = data[self.node1_tag]
