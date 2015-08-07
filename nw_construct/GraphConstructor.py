@@ -156,10 +156,6 @@ class TemporalGraph(_Graph):
                 dtype=None,
                 usecols=tuple(filter(lambda x: x in self._event_structure, self._file_header))
             )
-            print data[self.start_tag]
-            print data[self.stop_tag]
-            print data[self.node1_tag]
-            print data[self.node2_tag]
             self.starts = data[self.start_tag]
             self.stops = data[self.stop_tag]
             self.node1s = data[self.node1_tag]
