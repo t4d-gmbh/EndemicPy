@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-import re
+from re import MULTILINE, search
 import sys
 
 from codecs import open
@@ -21,12 +21,14 @@ packages = [
     'endemic/nw_spread'
 ]
 
-requires = ['numpy', 'Queue', 'copy']# 'networkx']
+requires = ['numpy']# 'networkx']
 
 version = ''
 with open('endemic/__init__.py', 'r') as fd:
-    version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
-                        fd.read(), re.MULTILINE).group(1)
+    version = search(
+        r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
+        fd.read(), MULTILINE
+    ).group(1)
 
 if not version:
     raise RuntimeError('Cannot find version information')
