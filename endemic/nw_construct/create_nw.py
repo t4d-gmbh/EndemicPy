@@ -1,7 +1,8 @@
 __author__ = 'Jonas I Liechti'
 #this will be used to create a command line tool, so it is of no importance here.
-from nw_construct import Graph
 from argparse import ArgumentParser
+
+from endemic.nw_construct import Graph
 
 
 def main():
