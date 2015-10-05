@@ -77,7 +77,7 @@ class Scenario():
         self._counts_over_time = zeros((1, self.pathogen.n))
         # set the default value for the time step used to regularly test if a quasi steady state is reached
         self._dt = params.get(
-            'dt',  # issue: not sure jet about the default value
+            'dt',  # issue: not sure yet about the default value
             5 / float(
                 min(self.pathogen.trans_rates)
             ) if float(
@@ -91,6 +91,10 @@ class Scenario():
             if opt_arg in params:
                 setattr(self, '_' + opt_arg, params.pop(opt_arg))
                 print '<{0:s}> was specified as an argument.'.format(opt_arg)
+        # specify number of decimals to round the log times
+        self._log_time_rounding = params.get('log_time_rounding', 2)
+        #
+        self._time_rounding = params.get('time_rounding', 4)
         self._resolve_hots_pathogen_relations()
         # by default do not consider selection
         self.skip_selection = True
@@ -318,7 +322,7 @@ class Scenario():
             #self.therapy_probas[its_id] = a_therapy.treatment_proba
             # if the therapy comes with a delay, handle the delay properly
             if type(a_therapy.delay) is float:
-                self.therapy_delays = [
+                self.therapy_delays[its_id] = [
                     a_therapy.delay for _ in range(self.contact_structure.n)
                 ]
             # to do: implement other cases (not uniform)
@@ -364,6 +368,8 @@ class Scenario():
                 # it might be we added a strain_id several times to self.therapy_strain_id_map[its_id] if so remove
                 #   the duplicates
                 self.therapy_strain_id_map[its_id] = list(set(self.therapy_strain_id_map[its_id]))
+                # initialize the strain therapy map
+                self.strain_therapy_id_map[strain_id] = []
         # run through all the therapies
         for therapy_id in self.therapy_strain_id_map:
             # run through all the strain ids for a given therapy (i.e. all the strains that are treated with it)
@@ -969,7 +975,7 @@ class Scenario():
                     **phase
                 )
             self._update_phase_in_sim_log()
-            self.log[self.t] = copy(self.current_view)
+            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
             try:
                 self.outcome[self.t].append(self.get_outcome)
             except (KeyError, AttributeError):
@@ -1083,24 +1089,24 @@ class Scenario():
                     # get the next event
                     (time, n_event) = self.queue.get_nowait()
                     # update the time of the scenario
-                    self.t = round(time, 4)  # issue: using round here is not ideal
+                    self.t = round(time, self._time_rounding)
                     #self._counts_over_time[int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
                     event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
                         if with_halt_condition:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         t_next_bin += dt
                         # check if we are in quasistable state (QSS) if yes, stop the sim
                         if self.quasistable(focus_strain_ids, surviving_strain_ids):
                             halt = True
                             # if we were not logging, write to the log now.
                             if not with_logging:
-                                self.log[self.t] = copy(self.current_view)
+                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                 # if no more events are to handle the sim is over (obviously)
                 except Empty:
-                    self.log[self.t] = copy(self.current_view)
+                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                     break
         # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
@@ -1209,27 +1215,27 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
 
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
@@ -1237,22 +1243,22 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
         #print 'treatment', with_treatment
         return 0
