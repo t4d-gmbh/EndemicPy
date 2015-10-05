@@ -1076,8 +1076,28 @@ class Scenario():
             surviving_strain_ids = None
         if halt_condition:
             focus_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
-        if assert_survival:
+        if assert_survival:  # stop as soon as one of the specified stains goes extinct
             surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+            with_logging = params.get('explicit', False)
+            done = False
+            while self.t < t_stop and not done:
+                try:
+                    # get the next event
+                    (time, n_event) = self.queue.get_nowait()
+                    # update the time of the scenario
+                    self.t = round(time, self._time_rounding)
+                    #self._counts_over_time[int(self.t)] = self._count_per_strains
+                    # pass the event to the event handler
+                    event_handler(n_event, get_neighbours)
+                    # the new time is after the checking time
+                    if self.t >= t_next_bin:
+                        # check for the condition
+                        for strain_id in surviving_strain_ids:
+                            if not self.current_view.count(strain_id):
+                                break
+                except Empty:
+                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    break
         # if we have a halt condition this part will conduct the simulation
         if with_halt_condition:
             halt = False
