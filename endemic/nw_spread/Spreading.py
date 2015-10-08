@@ -77,7 +77,7 @@ class Scenario():
         self._counts_over_time = zeros((1, self.pathogen.n))
         # set the default value for the time step used to regularly test if a quasi steady state is reached
         self._dt = params.get(
-            'dt',  # issue: not sure jet about the default value
+            'dt',  # issue: not sure yet about the default value
             5 / float(
                 min(self.pathogen.trans_rates)
             ) if float(
@@ -91,6 +91,10 @@ class Scenario():
             if opt_arg in params:
                 setattr(self, '_' + opt_arg, params.pop(opt_arg))
                 print '<{0:s}> was specified as an argument.'.format(opt_arg)
+        # specify number of decimals to round the log times
+        self._log_time_rounding = params.get('log_time_rounding', 2)
+        #
+        self._time_rounding = params.get('time_rounding', 4)
         self._resolve_hots_pathogen_relations()
         # by default do not consider selection
         self.skip_selection = True
@@ -121,6 +125,7 @@ class Scenario():
         self.current_treatment = [-1 for _ in xrange(self.contact_structure.n)]
         # this will be a list of booleans (index: strain_id, value: treating yes/no)
         self.treating = []
+        self.selecting = []
         # initialize the priorityqueue which will hold all the events (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
 
@@ -318,7 +323,7 @@ class Scenario():
             #self.therapy_probas[its_id] = a_therapy.treatment_proba
             # if the therapy comes with a delay, handle the delay properly
             if type(a_therapy.delay) is float:
-                self.therapy_delays = [
+                self.therapy_delays[its_id] = [
                     a_therapy.delay for _ in range(self.contact_structure.n)
                 ]
             # to do: implement other cases (not uniform)
@@ -361,9 +366,13 @@ class Scenario():
                     self.therapy_select_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.selection_factor['Default']
+                if self.therapy_select_facts[its_id][strain_id] != 1:
+                    self.skip_selection = False
                 # it might be we added a strain_id several times to self.therapy_strain_id_map[its_id] if so remove
                 #   the duplicates
                 self.therapy_strain_id_map[its_id] = list(set(self.therapy_strain_id_map[its_id]))
+                # initialize the strain therapy map
+                self.strain_therapy_id_map[strain_id] = []
         # run through all the therapies
         for therapy_id in self.therapy_strain_id_map:
             # run through all the strain ids for a given therapy (i.e. all the strains that are treated with it)
@@ -522,39 +531,46 @@ class Scenario():
                     nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
                     # This is the part devoted to selection and treatment
                     # ##
-                    selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                    if selection_times[selected_strain_id] < recover_time:
-                        recover_time = selection_times[selected_strain_id]
-                        new_token, new_inf_event = selected_strain_id, False
+                    if self.selecting[token_id]:
+                        selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
+                        if selection_times[selected_strain_id] < recover_time:
+                            recover_time = selection_times[selected_strain_id]
+                            new_token, new_inf_event = selected_strain_id, False
+                        else:
+                            new_token, new_inf_event = -1, True
                     else:
                         new_token, new_inf_event = -1, True
-                    therapy_ids = self.strain_therapy_id_map[token_id]
-                    #to do: gather the various times and chose at random one, not the
-                    # smallest as now.
-                    #print self.therapy_select_facts
-                    #issue: this does not work if we have more than one therapy.
-                    for therapy_id in therapy_ids:
-                        if self.treating[token_id] and nrand.rand() < self.therapy_probas[therapy_id][node_id]:
-                            delay = self.therapy_delays[therapy_id][node_id]
-                            if recover_time > delay:  #will recover after treatment delay
-                                recover_time = delay + (
-                                    recover_time - delay
-                                ) * self.therapy_recover_facts[therapy_id][token_id] ** (-1)
-                                selection_times = [
-                                    delay +
-                                    (selection_times[x] - delay) * self.therapy_select_facts[therapy_id][x] ** (-1)
-                                    for x in xrange(len(selection_times))
-                                ]  #x is the id of the potential mutant
-                                selected_strain_id = selection_times.index(min(selection_times))
-                                if recover_time > selection_times[selected_strain_id]:
-                                    recover_time = selection_times[selected_strain_id]
-                                    new_token, new_inf_event = selected_strain_id, False
-                        inf_times = where(
-                            start_times + inf_times <= delay,
-                            inf_times,
-                            delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
-                        )
-                    # ##
+
+                    if self.treating[token_id]:
+                        therapy_ids = self.strain_therapy_id_map[token_id]
+                        #to do: gather the various times and chose at random one, not the
+                        # smallest as now.
+                        #print self.therapy_select_facts
+                        #issue: this does not work if we have more than one therapy.
+                        for therapy_id in therapy_ids:
+                            if nrand.rand() < self.therapy_probas[therapy_id][node_id]:
+                                delay = self.therapy_delays[therapy_id][node_id]
+                                if recover_time > delay:  #will recover after treatment delay
+                                    recover_time = delay + (
+                                        recover_time - delay
+                                    ) * self.therapy_recover_facts[therapy_id][token_id] ** (-1)
+                                    if self.selecting[token_id]:
+                                        selection_times = [
+                                            delay +
+                                            (selection_times[x] - delay) *
+                                            self.therapy_select_facts[therapy_id][x] ** (-1)
+                                            for x in xrange(len(selection_times))
+                                        ]  #x is the id of the potential mutant
+                                        selected_strain_id = selection_times.index(min(selection_times))
+                                        if recover_time > selection_times[selected_strain_id]:
+                                            recover_time = selection_times[selected_strain_id]
+                                            new_token, new_inf_event = selected_strain_id, False
+                            inf_times = where(
+                                start_times + inf_times <= delay,
+                                inf_times,
+                                delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
+                            )
+                        # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
@@ -617,17 +633,17 @@ class Scenario():
                     # ##
                     # determine the strain that is selected for and the time at which the mutation will take place
                     # see Pathogen.get_selected method for more details
-                    selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                    if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
-                        recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
-                        new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
-                        # for a subsequent event.
-                    else:
-                        new_token, new_inf_event = -1, True  # if the mutation arises after recovering, the subsequent
-                        # event is simply: recovered
+                    new_token, new_inf_event = -1, True  # if the mutation arises after recovering, the subsequent
+                    # event is simply: recovered
                     # infections of the neighbours is now as without the selection/mutation as we assured that recover
                     # time is either the true recover time or the mutation time.
                     # ##
+                    if self.selecting[token_id]:
+                        selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
+                        if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
+                            recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
+                            new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
+                            # for a subsequent event.
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
@@ -969,7 +985,7 @@ class Scenario():
                     **phase
                 )
             self._update_phase_in_sim_log()
-            self.log[self.t] = copy(self.current_view)
+            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
             try:
                 self.outcome[self.t].append(self.get_outcome)
             except (KeyError, AttributeError):
@@ -1026,10 +1042,11 @@ class Scenario():
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         event_handler = self._handle_event_simple
         self.treating = []
+        self.selecting = []
         # if no selection parameters where provided when initializing the scenario no selection will be attempted no
         # matter what is specified in the phase we are currently in.
-        if self.skip_selection:
-            with_selection = False
+        #if self.skip_selection:
+        #    with_selection = False
         # same goes for treatment. If no treatment was specified when initializing (and the task 'add_treatment' was
         # never provided so far) we skip the treatment, no mather what is specified in the current phase.
         if self.skip_treatment:
@@ -1048,11 +1065,31 @@ class Scenario():
                 self.treating = [True for _ in xrange(self.pathogen.n)]  #if treating is missing all strains are treated
             # if we have treatment and selection, we need to use the combined event handler
             if with_selection:
+                if 'selecting' in params:
+                    selecting_dict = params.pop('selecting')
+                    def_val = True
+                    if 'Default' in selecting_dict:
+                        def_val = selecting_dict.pop('Default')
+                    self.selecting = [def_val for _ in xrange(self.pathogen.n)]
+                    for strain_name in selecting_dict:
+                        self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+                else:
+                    self.selecting = [True for _ in xrange(self.pathogen.n)]
                 event_handler = self._handle_event_combined
             # if it is only treatment, the treatment event handler is the one to use
             else:
                 event_handler = self._handle_event_treatment
         elif with_selection:
+            if 'selecting' in params:
+                selecting_dict = params.pop('selecting')
+                def_val = True
+                if 'Default' in selecting_dict:
+                    def_val = selecting_dict.pop('Default')
+                self.selecting = [def_val for _ in xrange(self.pathogen.n)]
+                for strain_name in selecting_dict:
+                    self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+            else:
+                self.selecting = [True for _ in xrange(self.pathogen.n)]
             # at this point we know that only selection is on, so use the selection event handler.
             event_handler = self._handle_event_selection
         # check if the time interval for reporting is specified, if not use default one.
@@ -1070,8 +1107,58 @@ class Scenario():
             surviving_strain_ids = None
         if halt_condition:
             focus_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
-        if assert_survival:
+        if assert_survival:  # stop as soon as one of the specified stains goes extinct
             surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+            # with_logging = params.get('explicit', False)
+            done = False
+
+            # TO DO: start for new structure.The wile loop can be put after the running conditions and
+            # each condition defines its proper stepper function.
+            # TO DO: problem of combining conditions remains.
+
+            def stepper(self):
+                # get the next event
+                (time, n_event) = self.queue.get_nowait()
+                # update the time of the scenario
+                self.t = round(time, self._time_rounding)
+                #self._counts_over_time[int(self.t)] = self._count_per_strains
+                # pass the event to the event handler
+                event_handler(n_event, get_neighbours)
+                # the new time is after the checking time
+                if self.t >= t_next_bin:
+                    # check for the condition
+                    for strain_id in surviving_strain_ids:
+                        if not self.current_view.count(strain_id):
+                            return 1
+                return 0
+
+            while self.t < t_stop:
+                try:
+                    if stepper(self):
+                        break
+                except Empty:
+                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    break
+            """
+            while self.t < t_stop and not done:
+                try:
+                    # get the next event
+                    (time, n_event) = self.queue.get_nowait()
+                    # update the time of the scenario
+                    self.t = round(time, self._time_rounding)
+                    #self._counts_over_time[int(self.t)] = self._count_per_strains
+                    # pass the event to the event handler
+                    event_handler(n_event, get_neighbours)
+                    # the new time is after the checking time
+                    if self.t >= t_next_bin:
+                        # check for the condition
+                        for strain_id in surviving_strain_ids:
+                            if not self.current_view.count(strain_id):
+                                break
+                except Empty:
+                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    break
+            """
         # if we have a halt condition this part will conduct the simulation
         if with_halt_condition:
             halt = False
@@ -1083,24 +1170,24 @@ class Scenario():
                     # get the next event
                     (time, n_event) = self.queue.get_nowait()
                     # update the time of the scenario
-                    self.t = round(time, 4)  # issue: using round here is not ideal
+                    self.t = round(time, self._time_rounding)
                     #self._counts_over_time[int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
                     event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
                         if with_halt_condition:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         t_next_bin += dt
                         # check if we are in quasistable state (QSS) if yes, stop the sim
                         if self.quasistable(focus_strain_ids, surviving_strain_ids):
                             halt = True
                             # if we were not logging, write to the log now.
                             if not with_logging:
-                                self.log[self.t] = copy(self.current_view)
+                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                 # if no more events are to handle the sim is over (obviously)
                 except Empty:
-                    self.log[self.t] = copy(self.current_view)
+                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                     break
         # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
@@ -1209,27 +1296,27 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
 
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
@@ -1237,22 +1324,22 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            self.log[self.t] = copy(self.current_view)
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        self.t = round(time, 4)
+                        self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                     except Empty:
-                        self.log[self.t] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
         #print 'treatment', with_treatment
         return 0
