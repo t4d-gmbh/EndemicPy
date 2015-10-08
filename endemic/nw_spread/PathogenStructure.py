@@ -110,8 +110,9 @@ class Pathogen():
                     )
                 strain_array[
                     self.ids[name]
-                ] = round(self._select_rates[_id][name], 6)  #Note: The selection rates are rounded on 6 digits
+                ] = self._select_rates[_id][name]
             self.select_rates.append(strain_array)
+            #print self.select_rates
         return 0
 
     def update_selection(self, concerns, new_rates):
@@ -137,7 +138,7 @@ class Pathogen():
                     )
                 strain_array[
                     self.ids[name]
-                ] = round(self._select_rates[_id][name], 4)  #Note: The selection rates are rounded on 4 digits
+                ] = self._select_rates[_id][name]
             self.select_rates[_id] = strain_array
             self._get_selection_dists()
         return 0

@@ -125,6 +125,7 @@ class Scenario():
         self.current_treatment = [-1 for _ in xrange(self.contact_structure.n)]
         # this will be a list of booleans (index: strain_id, value: treating yes/no)
         self.treating = []
+        self.selecting = []
         # initialize the priorityqueue which will hold all the events (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
 
@@ -365,6 +366,8 @@ class Scenario():
                     self.therapy_select_facts[its_id][
                         strain_id
                     ] = a_therapy.drug.selection_factor['Default']
+                if self.therapy_select_facts[its_id][strain_id] != 1:
+                    self.skip_selection = False
                 # it might be we added a strain_id several times to self.therapy_strain_id_map[its_id] if so remove
                 #   the duplicates
                 self.therapy_strain_id_map[its_id] = list(set(self.therapy_strain_id_map[its_id]))
@@ -528,39 +531,46 @@ class Scenario():
                     nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
                     # This is the part devoted to selection and treatment
                     # ##
-                    selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                    if selection_times[selected_strain_id] < recover_time:
-                        recover_time = selection_times[selected_strain_id]
-                        new_token, new_inf_event = selected_strain_id, False
+                    if self.selecting[token_id]:
+                        selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
+                        if selection_times[selected_strain_id] < recover_time:
+                            recover_time = selection_times[selected_strain_id]
+                            new_token, new_inf_event = selected_strain_id, False
+                        else:
+                            new_token, new_inf_event = -1, True
                     else:
                         new_token, new_inf_event = -1, True
-                    therapy_ids = self.strain_therapy_id_map[token_id]
-                    #to do: gather the various times and chose at random one, not the
-                    # smallest as now.
-                    #print self.therapy_select_facts
-                    #issue: this does not work if we have more than one therapy.
-                    for therapy_id in therapy_ids:
-                        if self.treating[token_id] and nrand.rand() < self.therapy_probas[therapy_id][node_id]:
-                            delay = self.therapy_delays[therapy_id][node_id]
-                            if recover_time > delay:  #will recover after treatment delay
-                                recover_time = delay + (
-                                    recover_time - delay
-                                ) * self.therapy_recover_facts[therapy_id][token_id] ** (-1)
-                                selection_times = [
-                                    delay +
-                                    (selection_times[x] - delay) * self.therapy_select_facts[therapy_id][x] ** (-1)
-                                    for x in xrange(len(selection_times))
-                                ]  #x is the id of the potential mutant
-                                selected_strain_id = selection_times.index(min(selection_times))
-                                if recover_time > selection_times[selected_strain_id]:
-                                    recover_time = selection_times[selected_strain_id]
-                                    new_token, new_inf_event = selected_strain_id, False
-                        inf_times = where(
-                            start_times + inf_times <= delay,
-                            inf_times,
-                            delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
-                        )
-                    # ##
+
+                    if self.treating[token_id]:
+                        therapy_ids = self.strain_therapy_id_map[token_id]
+                        #to do: gather the various times and chose at random one, not the
+                        # smallest as now.
+                        #print self.therapy_select_facts
+                        #issue: this does not work if we have more than one therapy.
+                        for therapy_id in therapy_ids:
+                            if nrand.rand() < self.therapy_probas[therapy_id][node_id]:
+                                delay = self.therapy_delays[therapy_id][node_id]
+                                if recover_time > delay:  #will recover after treatment delay
+                                    recover_time = delay + (
+                                        recover_time - delay
+                                    ) * self.therapy_recover_facts[therapy_id][token_id] ** (-1)
+                                    if self.selecting[token_id]:
+                                        selection_times = [
+                                            delay +
+                                            (selection_times[x] - delay) *
+                                            self.therapy_select_facts[therapy_id][x] ** (-1)
+                                            for x in xrange(len(selection_times))
+                                        ]  #x is the id of the potential mutant
+                                        selected_strain_id = selection_times.index(min(selection_times))
+                                        if recover_time > selection_times[selected_strain_id]:
+                                            recover_time = selection_times[selected_strain_id]
+                                            new_token, new_inf_event = selected_strain_id, False
+                            inf_times = where(
+                                start_times + inf_times <= delay,
+                                inf_times,
+                                delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
+                            )
+                        # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
@@ -623,17 +633,17 @@ class Scenario():
                     # ##
                     # determine the strain that is selected for and the time at which the mutation will take place
                     # see Pathogen.get_selected method for more details
-                    selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                    if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
-                        recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
-                        new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
-                        # for a subsequent event.
-                    else:
-                        new_token, new_inf_event = -1, True  # if the mutation arises after recovering, the subsequent
-                        # event is simply: recovered
+                    new_token, new_inf_event = -1, True  # if the mutation arises after recovering, the subsequent
+                    # event is simply: recovered
                     # infections of the neighbours is now as without the selection/mutation as we assured that recover
                     # time is either the true recover time or the mutation time.
                     # ##
+                    if self.selecting[token_id]:
+                        selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
+                        if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
+                            recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
+                            new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
+                            # for a subsequent event.
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
@@ -1032,10 +1042,11 @@ class Scenario():
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         event_handler = self._handle_event_simple
         self.treating = []
+        self.selecting = []
         # if no selection parameters where provided when initializing the scenario no selection will be attempted no
         # matter what is specified in the phase we are currently in.
-        if self.skip_selection:
-            with_selection = False
+        #if self.skip_selection:
+        #    with_selection = False
         # same goes for treatment. If no treatment was specified when initializing (and the task 'add_treatment' was
         # never provided so far) we skip the treatment, no mather what is specified in the current phase.
         if self.skip_treatment:
@@ -1054,11 +1065,31 @@ class Scenario():
                 self.treating = [True for _ in xrange(self.pathogen.n)]  #if treating is missing all strains are treated
             # if we have treatment and selection, we need to use the combined event handler
             if with_selection:
+                if 'selecting' in params:
+                    selecting_dict = params.pop('selecting')
+                    def_val = True
+                    if 'Default' in selecting_dict:
+                        def_val = selecting_dict.pop('Default')
+                    self.selecting = [def_val for _ in xrange(self.pathogen.n)]
+                    for strain_name in selecting_dict:
+                        self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+                else:
+                    self.selecting = [True for _ in xrange(self.pathogen.n)]
                 event_handler = self._handle_event_combined
             # if it is only treatment, the treatment event handler is the one to use
             else:
                 event_handler = self._handle_event_treatment
         elif with_selection:
+            if 'selecting' in params:
+                selecting_dict = params.pop('selecting')
+                def_val = True
+                if 'Default' in selecting_dict:
+                    def_val = selecting_dict.pop('Default')
+                self.selecting = [def_val for _ in xrange(self.pathogen.n)]
+                for strain_name in selecting_dict:
+                    self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+            else:
+                self.selecting = [True for _ in xrange(self.pathogen.n)]
             # at this point we know that only selection is on, so use the selection event handler.
             event_handler = self._handle_event_selection
         # check if the time interval for reporting is specified, if not use default one.
