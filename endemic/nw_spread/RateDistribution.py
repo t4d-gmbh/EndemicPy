@@ -1,10 +1,10 @@
-from numpy import vectorize, array, float64
+from numpy import vectorize, array, float64, apply_along_axis
 from scipy.stats import expon, norm, lomax
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 
 #this is the time it takes if a rate of 0 is given
-MAX_LIM = 10000
+MAX_LIM = 100000
 
 
 def no_mut(loc=None, scale=None, size=10):
@@ -109,9 +109,15 @@ class Distro(object):
     def __setstate__(self, d):
         if 'simple_queue_list' in d:
             event_queue_list = d.pop('simple_queue_list')
-            d['queue'] = SimpleQueue()
+            d['queue'] = SimpleQueue(maxsize=d['pre'] + 1)
             while len(event_queue_list):
                 d['queue'].put_nowait(event_queue_list.pop())
-        d['v_put'] = vectorize(d['queue'].put_nowait)
         self.__dict__.update(d)
+        self.__dict__['v_put'] = vectorize(self.queue.put_nowait)
         self.__dict__['v_get'] = vectorize(self.get_val)
+        if self.scale is None or self.sacle == 0:
+            #self.scale = 0
+            self.queue = SimpleQueue(maxsize=self.pre + 1)
+            self.v_put = vectorize(self.queue.put_nowait)  # this is specific to the queue, thus "reinit" here
+            self.draw_fct = no_mut
+            self.fillup()
