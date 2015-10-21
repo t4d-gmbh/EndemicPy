@@ -565,11 +565,11 @@ class Scenario():
                                         if recover_time > selection_times[selected_strain_id]:
                                             recover_time = selection_times[selected_strain_id]
                                             new_token, new_inf_event = selected_strain_id, False
-                            inf_times = where(
-                                start_times + inf_times <= delay,
-                                inf_times,
-                                delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
-                            )
+                                inf_times = where(
+                                    start_times + inf_times <= delay,
+                                    inf_times,
+                                    delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
+                                )
                         # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
@@ -679,6 +679,7 @@ class Scenario():
                     # issue: at the moment this approach takes only into account one therapy per pathogen strain
                     for therapy_id in therapy_ids:
                         # if this pathogen is treated at the moment and in this particular case we treat:
+                        # To Do: see combined case: you can move self.treating condition outside the therapy_id loop
                         if self.treating[token_id] and nrand.rand() < self.therapy_probas[therapy_id][node_id]:
                             delay = self.therapy_delays[therapy_id][node_id]  # get the delay until treatment
                             if recover_time > delay:  # if node has not recovered during the delay
