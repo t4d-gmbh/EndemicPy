@@ -797,7 +797,10 @@ class Scenario():
                 changed, i.e. just adding a new treatment will not lead to an actual treatment. You'll need to provide
                 the 'with_treatment': True task to run the simulation with a treatment.
         """
-        self.simulation_log['scenario'] = phases
+        try:
+            self.simulation_log['scenario'].append(phases)
+        except KeyError:
+            self.simulation_log['scenario'] = [phases]
         self.simulation_log['adjacency'][self.t] = self.contact_structure.nn
         # issue: should the adjacency be written in each phase?
         self._update_phase_in_sim_log()
@@ -811,13 +814,14 @@ class Scenario():
             if 'parameter_alternation' in phase:
                 # note: only transmission_rate and recover_rate changes work.
                 alternations = phase.pop('parameter_alternation')
-                self.simulation_log['param_alternation'] = alternations
+                self.simulation_log['param_alternation'][self.t] = alternations
                 self._parameter_alternation(alternations)
                 with_run = False
             if 'new_infection' in phase:
                 infection = phase.pop('new_infection')
                 self._initiate_infection(infection)
                 try:
+                    # ToDo: use the 'modifications' key for other events as well
                     self.simulation_log['modifications']['new_infection'] = (self.t, infection)
                 except KeyError:
                     self.simulation_log['modifications'] = {'new_infection': (self.t, infection)}

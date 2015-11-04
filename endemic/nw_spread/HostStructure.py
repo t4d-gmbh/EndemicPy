@@ -75,6 +75,7 @@ class ContactStructure():
 
     @property
     def info(self):
+        # ToDo: would make sense to define this.
         return self.graph_info
 
     def _check_integrity(self):
