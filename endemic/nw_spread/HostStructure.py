@@ -12,36 +12,44 @@ class ContactStructure():
     class UniqueIDError(Exception):
         pass
 
+    class ImplementationMissingError(Exception):
+        pass
+
     def __init__(self, from_object, susceptible=1, is_static=True):
         self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
-        suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
+        suscept_default = 1  # if any susceptibility information is missing, it will be completed with this value.
         if isinstance(from_object, list):  # assume it is a list of Host objects:
-            len_hosts = len(from_object)
-            self._hosts = []
-            self.nn = [[] for _ in xrange(len_hosts)]
-            self._susceptible = [{} for _ in xrange(len_hosts)]
-            for a_host in from_object:
-                self._hosts.append(a_host.ID)
-            self._hosts.sort()
-            self.n = len(self._hosts)  #gives the number of hosts
-            self._check_integrity()
-            id_map = {}
-            for val in self._hosts:
-                id_map[val] = self._hosts.index(val)
-            for a_host in from_object:
-                its_id = id_map[a_host.ID]
-                self.nn[its_id] = a_host.neighbours
-                its_default = suscept_default
-                susceptibility = a_host.susceptible
-                if 'Default' in susceptibility:
-                    its_default = susceptibility.pop('Default')
-                self._susceptible[its_id]['Default'] = its_default
-                for strain_name in susceptibility.keys():
-                    self._susceptible[its_id][strain_name] = susceptibility[strain_name]
-                    #self.susceptible[its_id] = a_host.susceptible
-            _hosts = id_map.values()
-            _hosts.sort()
-            self._hosts = _hosts
+            if self.is_static:
+                len_hosts = len(from_object)
+                self._hosts = []
+                self.nn = [[] for _ in xrange(len_hosts)]
+                self._susceptible = [{} for _ in xrange(len_hosts)]
+                for a_host in from_object:
+                    self._hosts.append(a_host.ID)
+                self._hosts.sort()
+                self.n = len(self._hosts)  # gives the number of hosts
+                self._check_integrity()
+                id_map = {}
+                for val in self._hosts:
+                    id_map[val] = self._hosts.index(val)
+                for a_host in from_object:
+                    its_id = id_map[a_host.ID]
+                    self.nn[its_id] = a_host.neighbours
+                    its_default = suscept_default
+                    susceptibility = a_host.susceptible
+                    if 'Default' in susceptibility:
+                        its_default = susceptibility.pop('Default')
+                    self._susceptible[its_id]['Default'] = its_default
+                    for strain_name in susceptibility.keys():
+                        self._susceptible[its_id][strain_name] = susceptibility[strain_name]
+                        #self.susceptible[its_id] = a_host.susceptible
+                _hosts = id_map.values()
+                _hosts.sort()
+                self._hosts = _hosts
+            else:
+                # ToDo: Create ContactStructure with a list of 'temporal' host objects.
+                raise self.ImplementationMissingError("""Creating a ContactStructure with a list of 'temporal'
+                Host objects is not implemented.""")
         elif True:  # it is a _Graph object # to do: set condition on being of _Graph class (with super?)
             self.is_static = from_object.is_static
             self.graph_info = from_object.info
@@ -247,6 +255,7 @@ class ContactSequence(ContactStructure):
         return [i for i, x in enumerate(distances) if x != -1]
 
 
+# ToDo: Make temporal part of this class. (low priority)
 class Host():
     def __init__(self, an_id, neighbours, susceptible):
         """
