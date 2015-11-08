@@ -279,7 +279,7 @@ class Scenario():
             # initialize all susceptibilities as the default
             self.contact_structure.susceptible[host_id] = [default for _ in xrange(self.pathogen.n)]
             # if other values are provided (e.g. wild_type: 0.5) convert the pathogen strain name to its id and
-            # set the suscepibilit for this strain
+            # set the susceptibility for this strain
             for strain_name in a_suscept:
                 self.contact_structure.susceptible[host_id][self.pathogen.ids[strain_name]] = a_suscept[strain_name]
         return 0
