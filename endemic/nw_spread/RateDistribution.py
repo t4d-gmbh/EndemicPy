@@ -47,18 +47,18 @@ class Distro(object):
         
         #the exponential dist is not defined for a rate of 0
         #therefore if the rate is 0 (scale is None then) huge times are set
+        self._dist_args = ()
+        self._dist_kwargs = {'loc': self.loc, 'scale': self.scale, 'size': self.pre}
         if self.scale is None or self.scale == 0:
             self.draw_fct = no_mut
         else:
-            self._dist_args = ()
-            self._dist_kwargs = {'loc': self.loc, 'scale': self.scale, 'size': self.size}
             if distribution_type == "exponential":
                 if not self.loc:
                     from numpy import random
                     self.draw_fct = random.exponential
                     self._dist_kwargs.pop('loc')  # does not exist in numpy.random.exponential
                 else:
-                    from scipy.stats.import expon
+                    from scipy.stats import expon
                     self.draw_fct = expon.rvs
             elif distribution_type == "gaussian":
                 from scipy.stats import norm
