@@ -1,5 +1,4 @@
 from numpy import vectorize, array, float64, apply_along_axis
-from scipy.stats import expon, norm, lomax
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 
@@ -48,18 +47,30 @@ class Distro(object):
         
         #the exponential dist is not defined for a rate of 0
         #therefore if the rate is 0 (scale is None then) huge times are set
+        self._dist_args = ()
+        self._dist_kwargs = {'loc': self.loc, 'scale': self.scale, 'size': self.pre}
         if self.scale is None or self.scale == 0:
             self.draw_fct = no_mut
         else:
-            if distribution_type == "exponential":                
-                self.draw_fct = expon.rvs
+            if distribution_type == "exponential":
+                if not self.loc:
+                    from numpy import random
+                    self.draw_fct = random.exponential
+                    self._dist_kwargs.pop('loc')  # does not exist in numpy.random.exponential
+                else:
+                    from scipy.stats import expon
+                    self.draw_fct = expon.rvs
             elif distribution_type == "gaussian":
+                from scipy.stats import norm
                 self.draw_fct = norm.rvs
             elif distribution_type == "lomax":
+                from scipy.stats import lomax
                 self.draw_fct = lomax.rvs
+                self._dist_args = (self.alpha,)
             else:
                 raise self.DistributionTypeError('This distribution type is not implemented yet.')
-                
+
+
         #fillup the queue
         self.fillup()
         # there was: (new version compatible with pickeling see method below)
@@ -69,10 +80,7 @@ class Distro(object):
         pass
     
     def fillup(self):
-        if self.distribution_type == "lomax":
-            self.v_put(abs(self.draw_fct(self.alpha, loc=self.loc, scale=self.scale, size=self.pre)))
-        else:
-            self.v_put(abs(self.draw_fct(loc=self.loc, scale=self.scale, size=self.pre)))
+        self.v_put(abs(self.draw_fct(*self._dist_args, **self._dist_kwargs)))
         return 0
 
     def get_val(self, a=None):
