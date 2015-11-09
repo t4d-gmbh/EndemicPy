@@ -53,14 +53,16 @@ class TemporalGraph(_Graph):
         self.is_static = False
         if isinstance(source, str):  # it is a file
             self._load(source, **params)
-        else:  # source must be an EventQueue then
-            # to do: read from event queue
-            # should also get self.starts, ...
-            pass
+        else:
+            # copy events that were passed by arguments
+            self._copy_events(**params)
+
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
         all_nodes = list(np.union1d(self.node1s, self.node2s))
         n = len(all_nodes)
+        self.nodes_start = params.get('nodes_start', np.repeat(self.t_start, n))
+        self.nodes_end = params.get('nodes_end', np.repeat(self.t_stop, n))
 
         def get_id(an_id):
             return all_nodes.index(an_id)
@@ -160,6 +162,27 @@ class TemporalGraph(_Graph):
             self.stops = data[self.stop_tag]
             self.node1s = data[self.node1_tag]
             self.node2s = data[self.node2_tag]
+
+    def _copy_events(self, **params):
+        """ copy events informations from existing arrays given as keyword arguments.
+
+        Parameters
+        ----------
+
+        starts: float array
+            starting times of the meetings
+        stops: float array
+            stoping times of the meetings
+        node1s: int array
+            IDs of the first mice for each meetings
+        node2s: int array
+            IDs of the second mice for each meetings
+        """
+
+        self.starts = np.array(params['starts'], dtype=np.float64)
+        self.stops = np.array(params['stops'], dtype=np.float64)
+        self.node1s = np.array(params['node1s'], dtype=np.int64)
+        self.node2s = np.array(params['node2s'], dtype=np.int64)
 
 
 class Graph(_Graph):

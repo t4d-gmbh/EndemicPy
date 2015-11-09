@@ -153,6 +153,8 @@ class ContactSequence(ContactStructure):
         self.node2s = temporal_graph.node2s
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
+        self.nodes_start = temporal_graph.nodes_start
+        self.nodes_end = temporal_graph.nodes_end
         ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
 
     def get_events(self, node_id, start_time, delta_t):
@@ -183,6 +185,26 @@ class ContactSequence(ContactStructure):
             nn2
         )
         return nn, self.starts[the_filter], self.stops[the_filter]
+
+    def get_nodes_by_lifetime(self, time_start, time_stop):
+        """
+        Returns all nodes that are "active" (as specified by TemporalGraph.nodes_start and TemporalGraph.nodes_end.
+
+
+        :param time_start:
+        :param time_stop:
+        :return:
+        """
+        lifetime_filter = np.logical_not(
+            np.logical_and(
+                time_stop > self.nodes_end,
+                time_start < self.nodes_start)
+        )
+        # TODO: need host ids here
+        # return [self._hosts[i] for i in xrange(self.n) if lifetime_filter[i]]
+
+        return []
+
 
     def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
         """
