@@ -190,7 +190,7 @@ class ContactSequence(ContactStructure):
                 node_id == self.node2s
             )
         )
-        nn1 = self.no   de1s[the_filter]
+        nn1 = self.node1s[the_filter]
         nn2 = self.node2s[the_filter]
 
         nn = np.where(
