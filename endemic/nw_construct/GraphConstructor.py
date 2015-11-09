@@ -59,11 +59,12 @@ class TemporalGraph(_Graph):
             pass
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        all_nodes = list(np.union1d(self.node1s, self.node2s))
-        n = len(all_nodes)
+        self.o_ids = list(np.union1d(self.node1s, self.node2s))
+
+        n = len(self.o_ids)
 
         def get_id(an_id):
-            return all_nodes.index(an_id)
+            return self.o_ids.index(an_id)
         v_get_id = np.vectorize(get_id)
 
         self.node1s = v_get_id(self.node1s)
@@ -209,6 +210,9 @@ class Graph(_Graph):
                         Please chose from " % self.nw_name + '[' + ', '.join(self.permitted_types) + ']')
                 self.distribution = distribution
                 self._create_graph(**self.distribution)
+
+            # create the o_ids attribtue
+            self.o_ids = range(n)
 
     def _create_graph(self, **distribution):
         """
