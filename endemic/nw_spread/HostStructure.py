@@ -18,6 +18,7 @@ class ContactStructure():
     def __init__(self, from_object, susceptible=1, is_static=True):
         self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
         suscept_default = 1  # if any susceptibility information is missing, it will be completed with this value.
+        self.o_ids = []  # match between the original ids of the nodes (values) and the newly generated ones (index)
         if isinstance(from_object, list):  # assume it is a list of Host objects:
             if self.is_static:
                 len_hosts = len(from_object)
@@ -46,13 +47,20 @@ class ContactStructure():
                 _hosts = id_map.values()
                 _hosts.sort()
                 self._hosts = _hosts
+                # create the original ID's list
+                inv_id_map = {v: k for k, v in id_map.iteritems()}
+                index_keys = inv_id_map.keys()
+                index_keys.sort()
+                self.o_ids = [inv_id_map[a_key] for a_key in index_keys]
             else:
                 # ToDo: Create ContactStructure with a list of 'temporal' host objects.
                 raise self.ImplementationMissingError("""Creating a ContactStructure with a list of 'temporal'
                 Host objects is not implemented.""")
+
         elif True:  # it is a _Graph object # to do: set condition on being of _Graph class (with super?)
             self.is_static = from_object.is_static
             self.graph_info = from_object.info
+            self.o_ids = from_object.o_ids
             self._hosts = range(from_object.n)
             self.n = from_object.n
             if self.is_static:
