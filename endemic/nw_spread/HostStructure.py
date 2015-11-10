@@ -206,21 +206,13 @@ class ContactSequence(ContactStructure):
         """
         Returns all nodes that are "active" (as specified by TemporalGraph.nodes_start and TemporalGraph.nodes_end.
 
-
         :param time_start:
         :param time_stop:
         :return:
         """
-        lifetime_filter = np.logical_not(
-            np.logical_and(
-                time_stop > self.nodes_end,
-                time_start < self.nodes_start)
-        )
-        # TODO: need host ids here
-        # return [self._hosts[i] for i in xrange(self.n) if lifetime_filter[i]]
+        node_indices = np.logical_and(self.nodes_start < time_stop, self.nodes_end > time_start)
 
-        return []
-
+        return [i for i in xrange(len(node_indices)) if node_indices[i]]
 
     def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
         """
