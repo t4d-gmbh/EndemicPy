@@ -63,9 +63,8 @@ class Scenario():
         }
         # this will hold processed output
         self.outcome = {}
-        # set the default starting time to 0
-        self.t = 0
         self.contact_structure = contact_structure
+        # set the time:
         self.t = self.contact_structure.t_start if not self.contact_structure.is_static else 0
         self.pathogen = pathogen
         #init of optional and internal arguments
@@ -224,9 +223,10 @@ class Scenario():
 
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
     # ideally reset should be called in __init__ to avoid any code duplication.
+    # ToDo: reset with a new temporal graph is not implemented.
     def reset(self, graph=None):
         """
-        This method allow to reset the entire scenario, i.e. the scenario is set back to the time t=0 before any
+        This method allow to reset the entire scenario, i.e. the scenario is set back to the time t=start/0 before any
         initial infections took place.
         It can be called when doing multiple simulations with the same parameters.
         If the parameter graph is provided, then the topology of the contact network is updated. (see the method
@@ -243,7 +243,7 @@ class Scenario():
             'param_alternation': {}
         }
         self.outcome = {}
-        self.t = 0
+        self.t = self.contact_structure.t_start if not self.contact_structure.is_static else 0
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         self._counts_over_time = zeros((1, self.pathogen.n))
         self.current_view = [-1 for _ in xrange(self.contact_structure.n)]  # Indicates the current status of the hosts
@@ -279,7 +279,7 @@ class Scenario():
             # initialize all susceptibilities as the default
             self.contact_structure.susceptible[host_id] = [default for _ in xrange(self.pathogen.n)]
             # if other values are provided (e.g. wild_type: 0.5) convert the pathogen strain name to its id and
-            # set the suscepibilit for this strain
+            # set the susceptibility for this strain
             for strain_name in a_suscept:
                 self.contact_structure.susceptible[host_id][self.pathogen.ids[strain_name]] = a_suscept[strain_name]
         return 0
@@ -396,6 +396,7 @@ class Scenario():
     class InitiateInfectionError(Exception):
         pass
 
+
     # this is an internal method (_...) so the idea is to never explicitly having to call this method.
     def _initiate_infection(self, strain, ):
         """
@@ -424,9 +425,13 @@ class Scenario():
                 t_end = strain[name].get('t_end', self.contact_structure.t_stop)
                 num_infections = strain[name].get('num_infections', 1)
                 candidadate_nodes = self.contact_structure.get_nodes_by_lifetime(t_start, t_end)
+                # print "Candidates: " + str(candidadate_nodes)
+                if len(candidadate_nodes) < num_infections:
+                    raise self.InitiateInfectionError('Not enough hosts in given time span to introduce %s infections'
+                                                      % num_infections)
                 for node_id in random.sample(candidadate_nodes, num_infections):
                     self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False,))
-                    print "infected node " + str(node_id)
+                    # print "infected node " + str(node_id)
             # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
                 self.queue.put_nowait(

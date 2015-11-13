@@ -53,24 +53,39 @@ class TemporalGraph(_Graph):
         self.is_static = False
         if isinstance(source, str):  # it is a file
             self._load(source, **params)
-        else:
+        else:  # source must be an EventQueue then
             # copy events that were passed by arguments
             self._copy_events(**params)
-
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        all_nodes = list(np.union1d(self.node1s, self.node2s))
-        n = len(all_nodes)
-        self.nodes_start = params.get('nodes_start', np.repeat(self.t_start, n))
-        self.nodes_end = params.get('nodes_end', np.repeat(self.t_stop, n))
+        self.o_ids = list(np.union1d(self.node1s, self.node2s))
+        n = len(self.o_ids)
 
         def get_id(an_id):
-            return all_nodes.index(an_id)
+            return self.o_ids.index(an_id)
         v_get_id = np.vectorize(get_id)
 
         self.node1s = v_get_id(self.node1s)
         self.node2s = v_get_id(self.node2s)
         # now we need to remap the node ids
+
+        # If specified add lifetime of nodes
+        self.nodes_start = np.repeat(self.t_start, n)
+        self.nodes_end = np.repeat(self.t_stop, n)
+        nodes_start = params.get('nodes_start', None)
+        nodes_end = params.get('nodes_end', None)
+        if isinstance(nodes_start, dict) and isinstance(nodes_end, dict):
+            # in case self.o_ids is a list of node names of general type (e.g. string)
+            for node_name, val in enumerate(nodes_start):
+                self.nodes_start[v_get_id(node_name)] = val
+            for node_name, val in enumerate(nodes_end):
+                self.nodes_end[v_get_id(node_name)] = val
+        elif isinstance(nodes_start, np.ndarray) and isinstance(nodes_end, np.ndarray):
+            # in this case self.o_ids has to be a list of integers with all integer values up to n that map to
+            # positions in nodes_start and nodes_end. Simply re-map positions...
+            self.nodes_start = nodes_start[v_get_id(range(n))]
+            self.nodes_end = nodes_end[v_get_id(range(n))]
+
         _Graph.__init__(self, n=n)
 
     def _load(self, source, **params):
@@ -232,6 +247,9 @@ class Graph(_Graph):
                         Please chose from " % self.nw_name + '[' + ', '.join(self.permitted_types) + ']')
                 self.distribution = distribution
                 self._create_graph(**self.distribution)
+
+            # create the o_ids attribtue
+            self.o_ids = range(n)
 
     def _create_graph(self, **distribution):
         """
