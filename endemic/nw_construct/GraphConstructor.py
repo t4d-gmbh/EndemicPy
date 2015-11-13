@@ -220,6 +220,7 @@ class TemporalGraph(_Graph):
         self.t_start = np.array(source.get('t_start', np.min(self.starts)))
         self.t_stop = np.array(source.get('t_stop', np.max(self.stops)))
 
+    # ToDo: will be replaced by _load_from_dict
     def _copy_events(self, **params):
         """ copy events informations from existing arrays given as keyword arguments.
 
