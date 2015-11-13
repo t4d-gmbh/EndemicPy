@@ -758,9 +758,10 @@ class Scenario():
                         This reads: the building up stops once the mutant_1 strain reached 90% of the total number of
                         infected. Alternatively 'total_infected' can be replaced by 'total' which would mean the total
                         number of hosts or by any other name of present strains, e.g. the wild_type.
-            'explicit': boolean.
+            'explicit': integer.
                 This task forces the scenario to provide detailed status reports over the entire simulation.
-                if True, then on every self.dt the current status is written into self.log (slowdown!).
+                If explicit==1, then on every self.dt the self.get_outcome is written into self.simulation_log.
+                If explicit==2, then on every self.dt the current status is written into self.log (slowdown!).
             'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
                 This task will shuffle in the specified way the infection status of hosts.
                 'target' must be a list of pathogen names and/or 'susc' for susceptible indicating the group of hosts
@@ -1168,7 +1169,7 @@ class Scenario():
         if with_halt_condition:
             halt = False
             # should the run be with explicit logs
-            with_logging = params.get('explicit', False)  # defaults to False
+            with_logging = params.get('explicit', 0)  # defaults to False
             # work the event queue until we either hit t_stop or the halt condition
             while self.t < t_stop and not halt:
                 try:
@@ -1181,18 +1182,23 @@ class Scenario():
                     event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
-                        if with_halt_condition:
-                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        if with_logging:
+                            if with_logging == 1:
+                                self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                            elif with_logging == 2:
+                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         t_next_bin += dt
                         # check if we are in quasistable state (QSS) if yes, stop the sim
                         if self.quasistable(focus_strain_ids, surviving_strain_ids):
                             halt = True
                             # if we were not logging, write to the log now.
-                            if not with_logging:
-                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                            # this should not be needed as we will write in the self.outcome as soon as the phase stops
+                            # if not with_logging:
+                            #     self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                 # if no more events are to handle the sim is over (obviously)
                 except Empty:
-                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    # we don't write into to log as we'll write into self.outcome
+                    # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                     break
         # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
@@ -1297,14 +1303,19 @@ class Scenario():
                     else:
                         return 0
             # run the phase:
-            if 'explicit' in params and params['explicit'] is True:
+            if 'explicit' in params and params['explicit']:
+                logging_type = params['explicit']
+                # ToDo: make logging_info fct, returning either self.get_outcome or copy(...) depending on type
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                            if logging_type == 1:
+                                self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                            elif logging_type == 2:
+                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                         if test_cond(self):
                             return 0
@@ -1325,7 +1336,7 @@ class Scenario():
                         break
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
-            if 'explicit' in params and params['explicit'] is True:
+            if 'explicit' in params and params['explicit']:
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
