@@ -49,29 +49,43 @@ class _Graph():
 
 class TemporalGraph(_Graph):
     def __init__(self, source, **params):
+        """
+        Source is the actual data we want to import. In params we can specify if we just want to look at part of the
+        data (e.g. provide 't_start' and 't_stop').
+        :param source:
+        :param params:
+        :return:
+        """
         #_Graph.__init__(self)
         self.is_static = False
+        # make type specific imports
         if isinstance(source, str):  # it is a file
-            self._load(source, **params)
+            self._load_from_file(source, **params)
+        elif isinstance(source, dict):
+            # if we don't need to pass on the params, better don't
+            self._load_from_dict(source)
         else:  # source must be an EventQueue then
             # copy events that were passed by arguments
             self._copy_events(**params)
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        self.o_ids = list(np.union1d(self.node1s, self.node2s))
+        self.o_ids = list(np.union1d(self._node1s, self._node2s))
         n = len(self.o_ids)
+        _Graph.__init__(self, n=n)
 
         def get_id(an_id):
             return self.o_ids.index(an_id)
         v_get_id = np.vectorize(get_id)
 
-        self.node1s = v_get_id(self.node1s)
-        self.node2s = v_get_id(self.node2s)
+        # self.node1/2s is the list of 'usable' node ids. self._node1/2s are the original node ids
+        self.node1s = v_get_id(self._node1s)
+        self.node2s = v_get_id(self._node2s)
         # now we need to remap the node ids
 
+        # ToDo: self.node_start and self.node_end should be defined from source and can be overwritten from params
         # If specified add lifetime of nodes
-        self.nodes_start = np.repeat(self.t_start, n)
-        self.nodes_end = np.repeat(self.t_stop, n)
+        self.nodes_start = np.repeat(self.t_start, self.n)
+        self.nodes_end = np.repeat(self.t_stop, self.n)
         nodes_start = params.get('nodes_start', None)
         nodes_end = params.get('nodes_end', None)
         if isinstance(nodes_start, dict) and isinstance(nodes_end, dict):
@@ -88,7 +102,7 @@ class TemporalGraph(_Graph):
 
         _Graph.__init__(self, n=n)
 
-    def _load(self, source, **params):
+    def _load_from_file(self, source, **params):
         # use memmap for large files?
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.memmap.html
         """
@@ -175,8 +189,36 @@ class TemporalGraph(_Graph):
             )
             self.starts = data[self.start_tag]
             self.stops = data[self.stop_tag]
-            self.node1s = data[self.node1_tag]
-            self.node2s = data[self.node2_tag]
+            self._node1s = data[self.node1_tag]
+            self._node2s = data[self.node2_tag]
+
+
+    def _load_from_dict(self, source):
+        # ToDo: create the docstring
+        """
+        Create a temporal graph from a python dictionary. The following keys are mandatory:
+
+            - starts: a list/array of start times for each event
+            - stops: a ...
+            - ...
+
+            Optional:
+            - ...
+        :param source:
+        :return:
+        """
+        # mandatory arguments:
+        try:
+            self.starts = np.array(source['starts'], dtype=np.float64)
+            self.stops = np.array(source['stops'], dtype=np.float64)
+            self._node1s = np.array(source['node1s'], dtype=np.int64)
+            self._node2s = np.array(source['node2s'], dtype=np.int64)
+        except KeyError:
+            raise InvalidArgumentError('Loading the temporal graph from a dict failed.\n Here is how to do this'
+                                       ' porperly:\n\n%s' % self._load_from_dict.__doc__)
+        # Optional part
+        self.t_start = np.array(source.get('t_start', np.min(self.starts)))
+        self.t_stop = np.array(source.get('t_stop', np.max(self.stops)))
 
     def _copy_events(self, **params):
         """ copy events informations from existing arrays given as keyword arguments.
