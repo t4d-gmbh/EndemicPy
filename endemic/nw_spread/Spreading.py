@@ -1502,7 +1502,7 @@ class Scenario():
         return False
 
     @property
-    def get_outcome(self, include_network=False):
+    def get_outcome(self):
         """
         This function should be called at the end of each phase.
         It computes all the necessary properties and returns them.
@@ -1539,15 +1539,12 @@ class Scenario():
                 nodes_per_degree[degrees[node_id]].append(node_id)
             for a_degree in observed_degrees:
                 degree_count[a_degree] = len(nodes_per_degree[a_degree])
-            if include_network:
-                _output = {
-                    'network': {
-                        'n': self.contact_structure.n,
-                        'degree_count': degree_count,
-                    }
+            _output = {
+                'network': {
+                    'n': self.contact_structure.n,
+                    'degree_count': degree_count,
                 }
-            else:
-                _output = {}
+            }
 
             for strain_id in self.pathogen.names.keys():
                 name = self.pathogen.names[strain_id]
@@ -1570,16 +1567,13 @@ class Scenario():
                 _output[name]['acquired'] = copy(strain_acquired)
                 _output[name]['degree_acquired'] = copy(strain_degree_acquired)
         else:
-            if include_network:
-                # ToDo: report some info about the current network
-                _output = {
-                    # 'network': {
-                    #     'n': self.contact_structure.n,
-                    #     'degree_count': degree_count,
-                    # }
-                }
-            else:
-                _output = {}
+            # ToDo: report some info about the current network
+            _output = {
+                # 'network': {
+                #     'n': self.contact_structure.n,
+                #     'degree_count': degree_count,
+                # }
+            }
             for strain_id in self.pathogen.names.keys():
                 # report active nodes
                 name = self.pathogen.names[strain_id]
