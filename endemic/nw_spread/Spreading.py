@@ -1326,9 +1326,9 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
+
                         if test_cond(self):
                             return 0
                     except Empty:
@@ -1502,7 +1502,7 @@ class Scenario():
         return False
 
     @property
-    def get_outcome(self):
+    def get_outcome(self, include_network=False):
         """
         This function should be called at the end of each phase.
         It computes all the necessary properties and returns them.
@@ -1522,14 +1522,8 @@ class Scenario():
          time2: ...
          }
         """
-
-        _output = {
-            'network': {
-                'n': self.contact_structure.n,
-                # 'degree_count': degree_count,
-            }
-        }
         if self.contact_structure.is_static:
+            # ToDo: the degree should be directly accessible from self.contact_structure
             degrees = []
             for node in xrange(self.contact_structure.n):
                 degrees.append(
@@ -1545,18 +1539,22 @@ class Scenario():
                 nodes_per_degree[degrees[node_id]].append(node_id)
             for a_degree in observed_degrees:
                 degree_count[a_degree] = len(nodes_per_degree[a_degree])
-            _output['network']['degree_count'] = degree_count
-        else:
-            # to do: what output for a dynamic network?
-            pass
-        # Run for each strain (we could also do the for strain_id ... inside the 2nd for loop below
-        for strain_id in self.pathogen.names.keys():
-            name = self.pathogen.names[strain_id]
-            _output[name] = {}
-            count = self.current_view.count(strain_id)
-            _output[name]['count'] = copy(count)
-            strain_acquired = 0
-            if self.contact_structure.is_static:
+            if include_network:
+                _output = {
+                    'network': {
+                        'n': self.contact_structure.n,
+                        'degree_count': degree_count,
+                    }
+                }
+            else:
+                _output = {}
+
+            for strain_id in self.pathogen.names.keys():
+                name = self.pathogen.names[strain_id]
+                _output[name] = {}
+                count = self.current_view.count(strain_id)
+                _output[name]['count'] = copy(count)
+                strain_acquired = 0
                 strain_degree_count = {}
                 strain_degree_acquired = {}
                 for a_degree in observed_degrees:
@@ -1571,11 +1569,28 @@ class Scenario():
                 _output[name]['degree_count'] = copy(strain_degree_count)
                 _output[name]['acquired'] = copy(strain_acquired)
                 _output[name]['degree_acquired'] = copy(strain_degree_acquired)
+        else:
+            if include_network:
+                # ToDo: report some info about the current network
+                _output = {
+                    # 'network': {
+                    #     'n': self.contact_structure.n,
+                    #     'degree_count': degree_count,
+                    # }
+                }
             else:
-                for node_id in xrange(self.contact_structure.n):
-                    if self.current_view[node_id] == strain_id:
-                        if self.current_infection_type[node_id] == 1:
-                            strain_acquired += 1
+                _output = {}
+            for strain_id in self.pathogen.names.keys():
+                # report active nodes
+                name = self.pathogen.names[strain_id]
+                _output[name] = {}
+                count = self.current_view.count(strain_id)
+                _output[name]['count'] = copy(count)
+                strain_acquired = 0
+                for node_id in xrange(self.contact_structure.n):  # in active nodes
+                        if self.current_view[node_id] == strain_id:
+                            if self.current_infection_type[node_id] == 1:
+                                strain_acquired += 1
                 _output[name]['acquired'] = copy(strain_acquired)
         return _output
 
