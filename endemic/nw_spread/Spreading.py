@@ -1160,7 +1160,6 @@ class Scenario():
                     break
             """
         logger_mode = params.get('explicit', 0)
-        print 'explicit status %s' % logger_mode
         # if we have a halt condition this part will conduct the simulation
         if with_halt_condition:
             halt = False
