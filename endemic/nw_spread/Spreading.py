@@ -1161,6 +1161,7 @@ class Scenario():
             """
         logger_mode = params.get('explicit', 0)
         # if we have a halt condition this part will conduct the simulation
+        print 'should be logging in mode %s every %s time step' % (logger_mode, dt)
         if with_halt_condition:
             halt = False
             # should the run be with explicit logs
@@ -1331,6 +1332,7 @@ class Scenario():
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
             if logger_mode:
+                print 'is in logger mode. Current time: %s, next_check %s' % (self.t, t_next_bin)
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
@@ -1342,6 +1344,7 @@ class Scenario():
                             elif logger_mode == 2:
                                 self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
+                            print '\tShould write: Current time: %s, next_check %s' % (self.t, t_next_bin)
                     except Empty:
                         self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
