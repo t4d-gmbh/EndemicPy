@@ -1345,7 +1345,6 @@ class Scenario():
                                 self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                             t_next_bin += dt
                             print '\tShould write: Current time: %s, next_check %s' % (self.t, t_next_bin)
-                            print '\tShould write: Current time: %s, next_check %s' % (self.t, t_next_bin)
                     except Empty:
                         self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
