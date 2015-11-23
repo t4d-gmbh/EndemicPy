@@ -990,7 +990,8 @@ class Scenario():
                     **phase
                 )
             self._update_phase_in_sim_log()
-            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+            # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+            self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
             try:
                 self.outcome[self.t].append(self.get_outcome)
             except (KeyError, AttributeError):
@@ -1137,7 +1138,10 @@ class Scenario():
                     if stepper(self):
                         break
                 except Empty:
-                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    # if logger_mode == 1:
+                    self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                    # elif logger_mode == 2:
+                    #    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                     break
             """
             while self.t < t_stop and not done:
@@ -1315,7 +1319,10 @@ class Scenario():
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        if logger_mode == 1:
+                            self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                        elif logger_mode == 2:
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -1327,7 +1334,7 @@ class Scenario():
                         if test_cond(self):
                             return 0
                     except Empty:
-                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                         break
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
@@ -1346,7 +1353,10 @@ class Scenario():
                             t_next_bin += dt
                             # print '\tShould write: Current time: %s, next_check %s' % (self.t, t_next_bin)
                     except Empty:
-                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        if logger_mode == 1:
+                            self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                        elif logger_mode == 2:
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -1355,7 +1365,8 @@ class Scenario():
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                     except Empty:
-                        self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                         break
         # print 'treatment', with_treatment
         return 0
