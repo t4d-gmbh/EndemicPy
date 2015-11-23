@@ -73,9 +73,8 @@ class TemporalGraph(_Graph):
         n = len(self.o_ids)
         _Graph.__init__(self, n=n)
 
-        def get_id(an_id):
-            return self.o_ids.index(an_id)
-        v_get_id = np.vectorize(get_id)
+        mapper = {val: key for key, val in enumerate(self.o_ids)}
+        v_get_id = np.vectorize(mapper.get)
 
         # self.node1/2s is the list of 'usable' node ids. self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
@@ -216,9 +215,11 @@ class TemporalGraph(_Graph):
         except KeyError:
             raise InvalidArgumentError('Loading the temporal graph from a dict failed.\n Here is how to do this'
                                        ' porperly:\n\n%s' % self._load_from_dict.__doc__)
+
         # Optional part
         self.t_start = np.array(source.get('t_start', np.min(self.starts)))
         self.t_stop = np.array(source.get('t_stop', np.max(self.stops)))
+
 
     # ToDo: will be replaced by _load_from_dict
     def _copy_events(self, **params):
