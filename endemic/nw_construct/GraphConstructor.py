@@ -224,16 +224,21 @@ class TemporalGraph(_Graph):
 
 
     def _load_from_dict(self, source):
-        # ToDo: create the docstring
         """
         Create a temporal graph from a python dictionary. The following keys are mandatory:
 
             - starts: a list/array of start times for each event
-            - stops: a ...
-            - ...
+            - stops: a list/array of end times for each event
+            - node1s: a list/array of IDs for interaction partner 1 for each event
+            - node2s: a list/array of IDs of interaction partner 2 for each event
 
             Optional:
-            - ...
+            - t_start: Start of simulation (default: start time of earliest event)
+            - t_end: End of simulation (default: end time of last event)
+            - nodes_start/ nodes_end: Time of start and end of the life-span of every node in the network. Allowed
+            types:
+                dictionary: Keys correspond to the node IDs, Values to the time of start/end
+                array: Value at index i corresponds to the time of start/end of individual i
         :param source:
         :return:
         """
