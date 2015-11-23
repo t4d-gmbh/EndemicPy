@@ -73,33 +73,63 @@ class TemporalGraph(_Graph):
         n = len(self.o_ids)
         _Graph.__init__(self, n=n)
 
+        # now we need to remap the node ids
         mapper = {val: key for key, val in enumerate(self.o_ids)}
         v_get_id = np.vectorize(mapper.get)
 
         # self.node1/2s is the list of 'usable' node ids. self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
-        # now we need to remap the node ids
 
-        # ToDo: self.node_start and self.node_end should be defined from source and can be overwritten from params
-        # If specified add lifetime of nodes
-        self.nodes_start = np.repeat(self.t_start, self.n)
-        self.nodes_end = np.repeat(self.t_stop, self.n)
-        nodes_start = params.get('nodes_start', None)
-        nodes_end = params.get('nodes_end', None)
-        if isinstance(nodes_start, dict) and isinstance(nodes_end, dict):
-            # in case self.o_ids is a list of node names of general type (e.g. string)
-            for node_name, val in enumerate(nodes_start):
-                self.nodes_start[v_get_id(node_name)] = val
-            for node_name, val in enumerate(nodes_end):
-                self.nodes_end[v_get_id(node_name)] = val
-        elif isinstance(nodes_start, np.ndarray) and isinstance(nodes_end, np.ndarray):
-            # in this case self.o_ids has to be a list of integers with all integer values up to n that map to
-            # positions in nodes_start and nodes_end. Simply re-map positions...
-            self.nodes_start = nodes_start[v_get_id(range(n))]
-            self.nodes_end = nodes_end[v_get_id(range(n))]
+        # If nodes_start and nodes_end are specified in params, overwrite it
+        if 'nodes_start' in params:
+            self.nodes_start = params.get('nodes_start')
+        if 'nodes_end' in params:
+            self.nodes_end = params.get('nodes_end')
+
+        # transform nodes_start and nodes_end into np.arrays if needed
+        if not (self.nodes_start is None or self.nodes_end is None):
+            if len(self.nodes_start) != n or len(self.nodes_end) != n:
+                InvalidArgumentError('The <nodes_start> and <nodes_end> arguments have to be of the same length as the '
+                                     'total number of unique nodes (n=%s)', str(self.n))
+            self._transform_nodes_start_end(v_get_id)
+        else:
+            # set to default values
+            self.nodes_start = np.repeat(self.t_start, n)
+            self.nodes_end = np.repeat(self.t_stop, n)
+
 
         _Graph.__init__(self, n=n)
+
+    def _transform_nodes_start_end(self, vectorize_func):
+        """
+        Transform self.nodes_start and self.nodes_end into numpy arrays in which the value at
+        position i is the value of individual i, defined by the vectorize function. If self.nodes_start and self.nodes_end are already numpy arrays, remap positions
+
+        Arguments:
+
+        :param vectorize_func: Maps an ID of general type (e.g. String) to an integer in the space {0...n}, where n
+         is the number of nodes
+        :return:
+        """
+        if isinstance(self.nodes_start, dict) and isinstance(self.nodes_end, dict):
+            nodes_start = copy(self.nodes_start)
+            nodes_end = copy(self.nodes_end)
+            self.nodes_start = np.zeros(len(nodes_start))
+            self.nodes_end = np.zeros(len(nodes_end))
+            for node_name, val in enumerate(nodes_start):
+                self.nodes_start[vectorize_func(node_name)] = val
+            for node_name, val in enumerate(nodes_end):
+                self.nodes_end[vectorize_func(node_name)] = val
+
+        elif isinstance(self.nodes_start, np.ndarray) and isinstance(self.nodes_end, np.ndarray):
+            # in this case self.o_ids has to be a list of integers with all integer values up to n that map to
+            # positions in nodes_start and nodes_end. Simply re-map positions...
+            self.nodes_start = self.nodes_start[vectorize_func(xrange(self.n))]
+            self.nodes_end = self.nodes_end[vectorize_func(xrange(self.n))]
+        else:
+            InvalidArgumentError('The arguments <nodes_start> and <nodes_end> have to be of type dict or numpy.array')
+
 
     def _load_from_file(self, source, **params):
         # use memmap for large files?
@@ -190,6 +220,7 @@ class TemporalGraph(_Graph):
             self.stops = data[self.stop_tag]
             self._node1s = data[self.node1_tag]
             self._node2s = data[self.node2_tag]
+            # ToDo: Read nodes_start and nodes_end as optional arguments from a text file
 
 
     def _load_from_dict(self, source):
@@ -219,6 +250,8 @@ class TemporalGraph(_Graph):
         # Optional part
         self.t_start = np.array(source.get('t_start', np.min(self.starts)))
         self.t_stop = np.array(source.get('t_stop', np.max(self.stops)))
+        self.nodes_start = source.get('nodes_start', None)
+        self.nodes_end = source.get('nodes_end', None)
 
 
     # ToDo: will be replaced by _load_from_dict
