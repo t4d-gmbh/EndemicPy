@@ -1165,7 +1165,7 @@ class Scenario():
             """
         logger_mode = params.get('explicit', 0)
         # if we have a halt condition this part will conduct the simulation
-        print 'should be logging in mode %s every %s time step' % (logger_mode, dt)
+        # print 'should be logging in mode %s every %s time step' % (logger_mode, dt)
         if with_halt_condition:
             halt = False
             # should the run be with explicit logs
