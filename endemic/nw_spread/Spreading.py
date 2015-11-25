@@ -1652,6 +1652,11 @@ class Scenario():
         return 0
     # ToDo: WRITE A METHOD THAT RENDERS SELF.LOG AND SELF.SIMULATION_LOG MORE READABLE
 
+    # @property
+    # def get_current_view(self):
+    #     if self.contact_structure
+    #     return copy(self.current_view)
+
     # to transform the priority queue holding the upcoming events into a pickleabel list
     def __getstate__(self):
         d = dict(self.__dict__)

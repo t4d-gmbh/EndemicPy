@@ -15,8 +15,9 @@ class ContactStructure():
     class ImplementationMissingError(Exception):
         pass
 
-    def __init__(self, from_object, susceptible=1, is_static=True):
+    def __init__(self, from_object, susceptible=1, is_static=True, has_dynamic_nodes=False):
         self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
+        self.has_dynamic_nodes = has_dynamic_nodes  # in the case of a temporal graph nodes can also be dynamic
         suscept_default = 1  # if any susceptibility information is missing, it will be completed with this value.
         self.o_ids = []  # match between the original ids of the nodes (values) and the newly generated ones (index)
         if isinstance(from_object, list):  # assume it is a list of Host objects:
@@ -171,7 +172,8 @@ class ContactSequence(ContactStructure):
         self.t_stop = params.get('t_stop', np.max(self.stops))
         self.nodes_start = temporal_graph.nodes_start
         self.nodes_end = temporal_graph.nodes_end
-        ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
+        ContactStructure.__init__(self, from_object=temporal_graph, is_static=False,
+                                  has_dynamic_nodes=temporal_graph.has_dynamic_nodes)
 
     def get_events(self, node_id, start_time, delta_t):
         """

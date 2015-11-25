@@ -58,6 +58,7 @@ class TemporalGraph(_Graph):
         """
         #_Graph.__init__(self)
         self.is_static = False
+        self.has_dynamic_nodes = False
         # make type specific imports
         if isinstance(source, str):  # it is a file
             self._load_from_file(source, **params)
@@ -93,11 +94,11 @@ class TemporalGraph(_Graph):
                 InvalidArgumentError('The <nodes_start> and <nodes_end> arguments have to be of the same length as the '
                                      'total number of unique nodes (n=%s)', str(self.n))
             self._transform_nodes_start_end(v_get_id)
+            self.has_dynamic_nodes = True
         else:
             # set to default values
             self.nodes_start = np.repeat(self.t_start, n)
             self.nodes_end = np.repeat(self.t_stop, n)
-
 
         _Graph.__init__(self, n=n)
 
@@ -301,6 +302,7 @@ class Graph(_Graph):
         """
         _Graph.__init__(self)
         self.is_static = True
+        self.has_dynamic_nodes = False
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
         self.permitted_types = allowed_dists + ["l_partition", 'full', 'PA']
