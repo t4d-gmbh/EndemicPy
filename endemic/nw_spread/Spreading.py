@@ -49,6 +49,10 @@ class Scenario():
                 - dt: the time step at which the current status should be recorded.
                 - default_susceptibility: Value [0,1] to be used for any missing susceptibility.
                     Default=1.
+                - ignore_dyn_nodes_in_log: If True, nodes that expand their lifespan are not set to -2 in self.log but
+                    keep their state or they may undergo future state changes (e.g. recovery). This option only has an
+                    effect if the contact_structure is a Temporal graph with specified node lifespans (arguments
+                    nodes_start and nodes_end of the TemporalGraph instance)
         """
         # this will store self.current_view at various times
         # Note: this will be replaced with self.outcome so feel free to ignore this
@@ -92,7 +96,7 @@ class Scenario():
                 print '<{0:s}> was specified as an argument.'.format(opt_arg)
         # specify number of decimals to round the log times
         self._log_time_rounding = params.get('log_time_rounding', 2)
-        #
+        self._ignore_dyn_nodes_in_log = params.get('ignore_dyn_nodes_in_log', False)
         self._time_rounding = params.get('time_rounding', 4)
         self._resolve_hots_pathogen_relations()
         # by default do not consider selection
@@ -1657,10 +1661,11 @@ class Scenario():
 
     @property
     def get_current_view(self):
-        if not self.contact_structure.has_dynamic_nodes:
-            return copy(self.current_view)
+        if not self.contact_structure.has_dynamic_nodes or \
+                (self.contact_structure.has_dynamic_nodes and self._ignore_dyn_nodes_in_log):
+            return copy(self.current_view)   # default behaviour
         else:
-            # Set all dead dyanmic nodes to state -2
+            # Set all nodes that exceeded their lifespan (given by nodes_end) to a special state -2
             new_current_view = map(
                 lambda i: self.current_view[i] if self.contact_structure.nodes_end[i] > self.t else -2,
                 xrange(len(self.current_view)))
