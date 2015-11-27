@@ -1362,7 +1362,6 @@ class Scenario():
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
-                        print (time, n_event)
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                     except Empty:
