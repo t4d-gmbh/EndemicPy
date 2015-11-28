@@ -1111,13 +1111,15 @@ class Scenario():
         t_next_bin = self.t + dt
         # check if we have some halt conditions that might lead to a termination of the simulation before t_stop.
         with_halt_condition = False
-        if halt_condition or assert_survival:
+        if assert_survival:
             with_halt_condition = True
-            focus_strain_ids = None
-            surviving_strain_ids = None
+            targeted_strains = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+            break_condition = self._check_survival
         if halt_condition:
-            focus_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
-        if assert_survival:  # stop as soon as one of the specified stains goes extinct
+            with_halt_condition = True
+            targeted_strains = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
+            break_condition = self._quasistable
+        if False:  # assert_survival:  # stop as soon as one of the specified stains goes extinct
             surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
             # with_logging = params.get('explicit', False)
             done = False
@@ -1196,8 +1198,9 @@ class Scenario():
                             elif logger_mode == 2:
                                 self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         t_next_bin += dt
-                        # check if we are in quasistable state (QSS) if yes, stop the sim
-                        if self.quasistable(focus_strain_ids, surviving_strain_ids):
+                        # check if we are in _quasistable state (QSS) if yes, stop the sim
+                        #if self._quasistable(focus_strain_ids, surviving_strain_ids):
+                        if break_condition(targeted_strains):
                             halt = True
                             # if we were not logging, write to the log now.
                             # this should not be needed as we will write in the self.outcome as soon as the phase stops
@@ -1494,7 +1497,7 @@ class Scenario():
 
     # to do: this method needs some make over ( is not and should not be used at the moment )
     # - self._counts_over_time is not properly defined anymore
-    def quasistable(self, quasi_stable_strain_ids=None, surviving_strain_ids=None):
+    def _quasistable(self, quasi_stable_strain_ids=None, surviving_strain_ids=None):
         """
         Stability check.
         If stable return True, else return False
@@ -1510,7 +1513,7 @@ class Scenario():
             if abs(1 - max_diff) >= 0.02:
                 return False
             else:
-                print 'quasistable at t= ', self.t
+                print '_quasistable at t= ', self.t
                 return True
         if surviving_strain_ids is not None:
             if not count_nonzero(self._counts_over_time[int(self.t)][surviving_strain_ids]):
@@ -1519,6 +1522,21 @@ class Scenario():
             else:
                 return False
         return False
+
+    def _check_survival(self, surviving_strain_ids):
+        """
+        Check if one of the strains specified in surviving_strain_ids went extinct.
+
+        :param surviving_strain_ids:
+        :return:
+        """
+        # if not count_nonzero(self._counts_over_time[int(self.t)][surviving_strain_ids]):
+        if not all([s_id in self.current_view for s_id in surviving_strain_ids]):
+            print 'a protected strain died out at t= ', self.t
+            return 1
+        else:
+            return 0
+
 
     @property
     def get_outcome(self):
