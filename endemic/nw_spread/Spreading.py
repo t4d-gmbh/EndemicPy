@@ -793,6 +793,11 @@ class Scenario():
                          - 'state_change': {'mode': 'reset', 1: 'mutant_1'} will change the token for node 1 to mutant_1
                         and draw a new recovery time for node_1 as well as new infection events for its neighbours.
             'reset_recovery': boolean. If true, all the recover times will be reset (drawn from the recover rate dists)
+                Note: reset_recovery will automatically reset all the transmission times.
+            'reset_transmission': True or dict. if True then all the transmission times are reset without resetting the
+                recovery times. if dict, then the reset mode is taken from the dict. e.g.
+                    'reset_transmission': {'mode': 'reset'}
+                will also reset the recover times. Possible values for 'mode' are 'reset' and 'keep'. Default is 'keep'
             'add_treatment': adds a new treatment to the existing scenario. Note that the treatment status is not
                 changed, i.e. just adding a new treatment will not lead to an actual treatment. You'll need to provide
                 the 'with_treatment': True task to run the simulation with a treatment.
@@ -833,10 +838,14 @@ class Scenario():
                 # which: which strain is introduced
                 # rate: at which rate it is introduced
                 # target: set of potential target hosts
+            if 'reset_transmission' in phase:
+                if phase['reset_transmission']:
+                    mode = phase.get('mode', 'keep')
+                    self._sync_event_queue(mode=mode)
+                with_run = False
             if 'reset_recovery' in phase:
                 if phase['reset_recovery']:
                     self._sync_event_queue(mode='reset')
-                with_run = False
             if 'state_change' in phase:
                 state_change = phase.pop('state_change')
                 try:
@@ -1304,7 +1313,6 @@ class Scenario():
                         return 0
             # run the phase:
             if logger_mode:
-                # ToDo: make logging_info fct, returning either self.get_outcome or copy(...) depending on type
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
