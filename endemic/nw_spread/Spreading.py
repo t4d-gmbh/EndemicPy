@@ -914,10 +914,7 @@ class Scenario():
                 with_run = False
             if 'shuffle' in phase:
                 shuffle = phase.pop('shuffle')
-                if 'mode' in shuffle:
-                    mode = shuffle.pop('mode')
-                else:
-                    mode = 'keep'
+                mode = shuffle.pop('mode', 'keep')
                 # write it to the simulation log
                 #print self.current_view
                 #print self.current_view.count(0), self.current_view.count(1)
