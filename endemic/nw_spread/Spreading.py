@@ -1000,11 +1000,12 @@ class Scenario():
                 )
             self._update_phase_in_sim_log()
             # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-            self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+            after_phase_outcome = self.get_outcome
+            self.log[round(self.t, self._log_time_rounding)] = after_phase_outcome
             try:
-                self.outcome[self.t].append(self.get_outcome)
+                self.outcome[self.t].append(after_phase_outcome)
             except (KeyError, AttributeError):
-                self.outcome[self.t] = [self.get_outcome]
+                self.outcome[self.t] = [after_phase_outcome]
             # if 'assert_survival' in phase:
             #    to_survive = phase.pop('assert_survival')
             #    break_here = False
@@ -1119,6 +1120,7 @@ class Scenario():
             with_halt_condition = True
             targeted_strains = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
             break_condition = self._quasistable
+        # to do: basically get rid of the if statement below (is handled in if with_halt_condition)
         if False:  # assert_survival:  # stop as soon as one of the specified stains goes extinct
             surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
             # with_logging = params.get('explicit', False)
