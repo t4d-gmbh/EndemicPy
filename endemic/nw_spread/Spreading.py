@@ -169,12 +169,15 @@ class Scenario():
             # of the old Strain
             self.current_infection_type[node_id] = 1  # set the type of infection to mutation
             self.simulation_log['mutations'].append(
-                # to do: if we have a dynamic network the degree is replaced with the node_id, ideall we should report
+                # to do: if we have a dynamic network the degree is replaced with the node_id, ideally we should report
                 # the activity of this node
+                # to do: ideally we add self.contact_structure.degree
                 (self.t, token_id, len(self.contact_structure.nn[node_id])) if self.contact_structure.is_static else
                 (self.t, token_id, node_id)
             )
-            self._count_per_strains[self.current_view[node_id]] -= 1
+            current_status = self.current_view[node_id]
+            if current_status != -1:  # to avoid the 'initial mutation' problem
+                self._count_per_strains[self.current_view[node_id]] -= 1
         else:
             self.current_infection_type[node_id] = 0  # set the type of infection to 'through selection'
         self.current_view[node_id] = token_id  # set the current status of the node to the Strain he is
@@ -419,9 +422,12 @@ class Scenario():
                     self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False,))
             # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
+                random_node_id = nrand.randint(0, self.contact_structure.n)
                 self.queue.put_nowait(
-                    Event(self.t, nrand.randint(0, self.contact_structure.n), self.pathogen.ids[name], False,)
+                    Event(self.t, random_node_id, self.pathogen.ids[name], False,)
                 )
+                # if self._count_per_strains[random_node_id] == 0:
+
             # if another strain is the value
             elif strain[name] in self.pathogen.ids.keys():
                 # get the ids of of name and strain[name]
@@ -616,14 +622,14 @@ class Scenario():
         :return:
         """
         node_id, token_id, inf_event, source = an_event
+        old_strain_id = self.current_view[node_id]
         if token_id == -1:  # the Event is recovering
-            old_strain_id = self.current_view[node_id]
             self.contact_structure.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
             self._count_per_strains[old_strain_id] -= 1
         else:  # the event is an infection or selection
-            if inf_event and self.current_view[node_id] != -1:  # infection of infected host: do nothing
+            if inf_event and old_strain_id != -1:  # infection of infected host: do nothing
                 pass  # NOTE: if super-infections are possible, here they would take place
             else:  # infection of susceptible host or selection/mutation
                 if nrand.rand() < self.contact_structure.susceptible[node_id][token_id] or not inf_event:
@@ -1275,12 +1281,12 @@ class Scenario():
                         condition = rel_id_stop_cond[s_id][1]
                         ref_val = condition if type(condition) in [float, int] else (
                             sum(
-                                self.current_view.count(strain_id) for strain_id in self.pathogen.ids.values()
-                                # self._count_per_strains[strain_id] for strain_id in self.pathogen.ids.values()
+                                # self.current_view.count(strain_id) for strain_id in self.pathogen.ids.values()
+                                self._count_per_strains[strain_id] for strain_id in self.pathogen.ids.values()
                             ) if type(condition) is list else self.contact_network.n
                         )
-                        if self.current_view.count(s_id) >= rel_id_stop_cond[s_id][0] * ref_val:
-                        # if self._count_per_strains[s_id] >= rel_id_stop_cond[s_id][0] * ref_val:
+                        # if self.current_view.count(s_id) >= rel_id_stop_cond[s_id][0] * ref_val:
+                        if self._count_per_strains[s_id] >= rel_id_stop_cond[s_id][0] * ref_val:
                             print 'reached fraction', self._count_per_strains, [
                                     self.current_view.count(i) for i in self.pathogen.ids.values()
                                 ]
