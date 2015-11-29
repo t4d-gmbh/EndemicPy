@@ -30,7 +30,7 @@ def _get_rand_el(a_list):
     """
     return a_list[nrand.randint(0, len(a_list))]
 
-
+# to do: define attribute self._seed, then nrand = np.random.RandomState(self._seed) so to produce reproducible output
 class Scenario():
     def __init__(self, contact_structure, pathogen, treatment=None, **params):
         """
