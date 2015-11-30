@@ -76,7 +76,8 @@ class TemporalGraph(_Graph):
 
         # now we need to remap the node ids
         mapper = {val: key for key, val in enumerate(self.o_ids)}
-        v_get_id = np.vectorize(mapper.get)
+        get_element = lambda k: mapper.get(k)
+        v_get_id = np.vectorize(get_element)
 
         # self.node1/2s is the list of 'usable' node ids. self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
