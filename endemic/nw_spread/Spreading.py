@@ -1004,6 +1004,9 @@ class Scenario():
                 )
             self._update_phase_in_sim_log()
             # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+            # Note: There are quite some implications when passing the after_phase_outcome
+            #   to both the Scenario.log and the Scenario.outcome, changing one will also change the
+            #   other.
             after_phase_outcome = self.get_outcome
             self.log[round(self.t, self._log_time_rounding)] = after_phase_outcome
             try:
