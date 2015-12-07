@@ -1008,6 +1008,7 @@ class Scenario():
             #   to both the Scenario.log and the Scenario.outcome, changing one will also change the
             #   other.
             after_phase_outcome = self.get_outcome
+            # To Do: This might overwrite an existing entry (if self.t does not change)
             self.log[round(self.t, self._log_time_rounding)] = after_phase_outcome
             try:
                 self.outcome[self.t].append(after_phase_outcome)
