@@ -119,9 +119,9 @@ class TemporalGraph(_Graph):
             nodes_end = copy(self.nodes_end)
             self.nodes_start = np.zeros(len(nodes_start))
             self.nodes_end = np.zeros(len(nodes_end))
-            for node_name, val in enumerate(nodes_start):
+            for node_name, val in nodes_start.items():
                 self.nodes_start[vectorize_func(node_name)] = val
-            for node_name, val in enumerate(nodes_end):
+            for node_name, val in nodes_end.items():
                 self.nodes_end[vectorize_func(node_name)] = val
 
         elif isinstance(self.nodes_start, np.ndarray) and isinstance(self.nodes_end, np.ndarray):

@@ -434,7 +434,7 @@ class Scenario():
                     raise self.InitiateInfectionError('Not enough hosts in given time span to introduce %s infections'
                                                       % num_infections)
                 for node_id in random.sample(candidadate_nodes, num_infections):
-                    self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False, ))
+                    self.queue.put_nowait(Event((t_start + t_end)/2.0, node_id, self.pathogen.ids[name], False, ))
                     # print "infected node " + str(node_id)
             # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
