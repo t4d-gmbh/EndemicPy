@@ -123,7 +123,7 @@ class Scenario():
         # dict that can be used to pass on values between phases. This is more for future use and not important for now.
         self._phase_passon = {}
         # initialize the status of whether or not a host is under treatment. (-1: not infected
-        self.current_treatment = [-1 for _ in xrange(self.contact_structure.n)]
+        self.current_therapy = [-1 for _ in xrange(self.contact_structure.n)]
         # this will be a list of booleans (index: strain_id, value: treating yes/no)
         self.treating = []
         self.selecting = []
@@ -251,7 +251,7 @@ class Scenario():
         self._counts_over_time = zeros((1, self.pathogen.n))
         self.current_view = [-1 for _ in xrange(self.contact_structure.n)]  # Indicates the current status of the hosts
         self.current_infection_type = [-1 for _ in xrange(self.contact_structure.n)]
-        self.current_treatment = [-1 for _ in xrange(self.contact_structure.n)]
+        self.current_therapy = [-1 for _ in xrange(self.contact_structure.n)]
         self._phase_passon = {}  # dict that can be used to pass on values between phases.
         while True:  # empty the queue
             try:
@@ -528,6 +528,7 @@ class Scenario():
             # set the node status back to susceptible
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
+            self.current_therapy[node_id] = -1  # set the treatment status back to not treated
             self._count_per_strains[old_strain_id] -= 1
         else:  # the Event is an infection or selection
             if inf_event and self.current_view[node_id] != -1:  # infection of infected host: do nothing
@@ -555,6 +556,7 @@ class Scenario():
                         # issue: this does not work if we have more than one therapy.
                         for therapy_id in therapy_ids:
                             if nrand.rand() < self.therapy_probas[therapy_id][node_id]:
+                                self.current_therapy[node_id] = therapy_id  # set the therapy
                                 delay = self.therapy_delays[therapy_id][node_id]
                                 if recover_time > delay:  # will recover after treatment delay
                                     recover_time = delay + (
@@ -598,6 +600,7 @@ class Scenario():
             self.contact_structure.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
             self.current_view[node_id] = -1  # set the node back to the uninfected state
             self.current_infection_type[node_id] = -1  # set the infection type back
+            self.current_therapy[node_id] = -1  # set the treatment status back to not treated
             self._count_per_strains[old_strain_id] -= 1  # update the count of number of infected for that strain
         else:  # the Event is an infection
             if inf_event and self.current_view[node_id] != -1:  # infection of infected host: do nothing
@@ -613,6 +616,8 @@ class Scenario():
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))  # put the recover event
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    # set the treatment status back to untreated in any case
+                    self.current_therapy[node_id] = -1
         return 0
 
     def _handle_event_selection(self, an_event, get_neighbours):  # with only selection
@@ -628,6 +633,7 @@ class Scenario():
             self.contact_structure.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
+            self.current_therapy[node_id] = -1  # set the treatment status back to not treated
             self._count_per_strains[old_strain_id] -= 1
         else:  # the event is an infection or selection
             if inf_event and old_strain_id != -1:  # infection of infected host: do nothing
@@ -655,6 +661,7 @@ class Scenario():
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
                     # or the mutation event.
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    self.current_therapy[node_id] = -1  # set the treatment status back to not treated
         return 0
 
     def _handle_event_treatment(self, an_event, get_neighbours):  # with only treatment
@@ -671,6 +678,7 @@ class Scenario():
             self.contact_structure.susceptible[node_id][old_strain_id] = self.pathogen.rec_types[old_strain_id]
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
+            self.current_therapy[node_id] = -1  # set the treatment status back to not treated
             self._count_per_strains[old_strain_id] -= 1
         else:  # the Event is an infection or selection
             if inf_event and self.current_view[node_id] != -1:  # infection of infected host: do nothing
@@ -687,6 +695,7 @@ class Scenario():
                         # if this pathogen is treated at the moment and in this particular case we treat:
                         # To Do: see combined case: you can move self.treating condition outside the therapy_id loop
                         if self.treating[token_id] and nrand.rand() < self.therapy_probas[therapy_id][node_id]:
+                            self.current_therapy[node_id] = therapy_id  # set the therapy status
                             delay = self.therapy_delays[therapy_id][node_id]  # get the delay until treatment
                             if recover_time > delay:  # if node has not recovered during the delay
                                 # # define a new recover time, that is the delay plus a new recover time under treatment
