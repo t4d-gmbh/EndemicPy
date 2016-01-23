@@ -855,6 +855,45 @@ class Scenario():
                 # rate: at which rate it is introduced
                 # target: set of potential target hosts
             if 'reset_transmission' in phase:
+                reset_transmission = phase.pop('reset_transmission', None)
+                if isinstance(reset_transmission, bool) and reset_transmission:
+                    # reset all the transmission events if the value is True
+                    mode = phase.get('mode', 'keep')
+                    self._sync_event_queue(mode=mode)
+                elif isinstance(reset_transmission, list):
+                    if not any([isinstance(an_el, str) for an_el in reset_transmission]):
+                        # in this case for each node the reset status is set
+                        self._sync_event_queue(mode='keep', targets=reset_transmission)
+                    else:
+                        # the list is a list of tokens (could be with therapies)
+                        targets = []
+                        for a_token in reset_transmission:
+                            # split the therapy from the token
+                            # get the id of the token
+                            # get the id of the therapy
+                            # get the nodes with this token
+                            # filter the nodes for the therapy id (if existing)
+                            # extend the target list
+                        mode = phase.get('mode', 'keep')
+                        self._sync_event_queue(mode=mode, targets=targets)
+                elif isinstance(reset_transmission, str):
+                    # in this case a single token (eventually along with a therapy id) is given
+                    if ';' in reset_transmission:
+                        the_token, the_therapy = reset_transmission.split(';')
+                    else:
+                        the_token = reset_transmission
+                        the_therapy = None
+                    # get id of the_token
+                    # get id of the therapy (if existing)
+                    # the the node ids with this token
+                    # filter them for the therapy id (if exising)
+                    # pass the targets to self._sync...
+
+                    self._sync_event_queue(mode=reset_transmission)
+                elif isinstance(reset_transmission, str):
+                    # reset for a certain strain only. e.g. mutant, wild_type, wild_type;drug1
+
+
                 if phase['reset_transmission']:
                     mode = phase.get('mode', 'keep')
                     self._sync_event_queue(mode=mode)
@@ -1427,15 +1466,18 @@ class Scenario():
 
     # to do: method should create list of instantaneous infection events then let the list be digested by appropriate
     # event handlers.
-    def _sync_event_queue(self, mode='keep'):
+    def _sync_event_queue(self, mode='keep', targets=None):
         """
         This method will consume and recreate the event queue based on the status on self.current_view and the mode
         specified in the mode argument.
 
 
         :type mode: str; list; dict
+        :type targets: None; list
         :param mode: either a string ('keep', 'reset') or a dict {'wild_type': 'keep'/'reset', ...} or a
             list [0, 1, ...] indicating the whether to reset (1) or to keep (0) the recover time for each node
+        :param targets: list of node id for which the transmission events should be reset. The default is None
+            leading to all transmission events for all nodes beeing reset.
         :return:
         """
         # get the reset mode
@@ -1453,6 +1495,7 @@ class Scenario():
             except Empty:
                 break
             else:
+                # TODO: we might want to keep some transmission events. -> add a filter
                 # filter infection events
                 if event[1][1] == -1:  # just take the recover events
                     event_queue.append(event)
