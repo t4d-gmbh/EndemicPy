@@ -1739,6 +1739,12 @@ class Scenario():
                 d['queue'].put_nowait(event_queue_list.pop())
         self.__dict__.update(d)
 
+        # patch: there was a name change: now it's self.current_therapy:
+        self.__dict__['current_therapy'] = self.__dict__['current_treatment']
+
+
+
+
 
 # issue: Make this a static method of Spreading?
 def Event(time, node, token, inf_event, source=None):
