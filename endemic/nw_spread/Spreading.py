@@ -187,14 +187,14 @@ class Scenario():
             self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
         self._count_per_strains[token_id] += 1  # update the counter of the Strain that is infecting.
 
-    def _create_transmission_events(self, node_id, token_id, recover_time, therapy_id=None):
+    def _create_transmission_events(self, node_id, token_id, recover_time, therapy_id=-1):
         """
-        This method is used whenever a transition is made (e.g. treatment-notreatment) and the
+        This method is used whenever a transition is made, so in reset_transmission (e.g. treatment-notreatment) and the
         transmission events need to be redrawn.
 
         Note: this method is not used to to handle events. it only creates new ones.
 
-        :param recover_time:
+        :param recover_time: must be given in dt from current time
         :param node_id:
         :param token_id:
         :param therapy_id:
@@ -206,9 +206,11 @@ class Scenario():
         else:
             get_neighbours = self._get_neighbours_dynamic
         # draw infection times for all neighbours (use delay + therapy if therapy_id is not none)
-        #nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
+        nn, _recover_time, inf_times, start_times, stop_time = get_neighbours(node_id, token_id)
+        # we can use self._get_neighbours_static/dynamic here as they don't cut the inf_times with the recover time
+        # min the _recover_time which we don't use as we keep the one given as arg.
         # get nn and times conditioned on recover_time
-        if therapy_id:
+        if therapy_id != -1:
             delay = self.therapy_delays[therapy_id][node_id]
             if recover_time > delay:  # if recovery is after the delay.
                 inf_times = where(
@@ -216,8 +218,10 @@ class Scenario():
                     inf_times,
                     delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
                 )
-        nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
-        self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+        nn, inf_times = self._cut_times(recover_time, start_times, stop_time, inf_times, nn)
+        # inf_event = 1 as these are infections only
+        for x in xrange(inf_times.size):
+            self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
 
     def _get_neighbours_static(self, node_id, token_id):
         """
@@ -429,6 +433,9 @@ class Scenario():
         pass
 
     class InitiateInfectionError(Exception):
+        pass
+
+    class WrongImplementationError(Exception):
         pass
 
     # this is an internal method (_...) so the idea is to never explicitly having to call this method.
@@ -888,18 +895,20 @@ class Scenario():
                 # target: set of potential target hosts
             if 'reset_transmission' in phase:
                 reset_transmission = phase.pop('reset_transmission', None)
-                if isinstance(reset_transmission, (bool, int)) and reset_transmission:
+                to_reset = reset_transmission.get('target_nodes')
+                transition_type = reset_transmission.get('transition_type')
+                if isinstance(to_reset, (bool, int)) and to_reset:
                     # reset all the transmission events if the value is True
                     mode = phase.get('mode', 'keep')
                     self._sync_event_queue(mode=mode)
-                elif isinstance(reset_transmission, list):
-                    if not any([isinstance(an_el, str) for an_el in reset_transmission]):
+                elif isinstance(to_reset, list):
+                    if not any([isinstance(an_el, str) for an_el in to_reset]):
                         # in this case for each node the reset status is set
-                        self._sync_event_queue(mode='keep', targets=reset_transmission)
+                        self._sync_event_queue(mode='keep', targets=to_reset)
                     else:
                         # the list is a list of tokens (could be with therapies)
                         targets = []
-                        for a_token in reset_transmission:
+                        for a_token in to_reset:
                             if ';' in a_token:
                                 the_token, the_therapy = a_token.split(';')
                             else:
@@ -918,12 +927,12 @@ class Scenario():
                             targets.extend(adding_targets)
                         mode = phase.get('mode', 'keep')
                         self._sync_event_queue(mode=mode, targets=targets)
-                elif isinstance(reset_transmission, str):
+                elif isinstance(to_reset, str):
                     # reset for a certain strain only. e.g. mutant, wild_type, wild_type;drug1
-                    if ';' in reset_transmission:
-                        the_token, the_therapy = reset_transmission.split(';')
+                    if ';' in to_reset:
+                        the_token, the_therapy = to_reset.split(';')
                     else:
-                        the_token, the_therapy = reset_transmission, None
+                        the_token, the_therapy = to_reset, None
                     token_id = self.pathogen.ids[the_token]
                     # get all the nodes which currently have that status
                     targets = filter(lambda i:self.current_view[i] == token_id, xrange(len(self.current_view)))
@@ -1489,7 +1498,7 @@ class Scenario():
         :return:
         """
         for strain_name in alternations:
-            #get its id
+            # get its id
             its_id = self.pathogen.ids[strain_name]
             if 'transmission_rate' in alternations[strain_name]:
                 new_rate = alternations[strain_name]['transmission_rate']
@@ -1506,7 +1515,7 @@ class Scenario():
 
     # to do: method should create list of instantaneous infection events then let the list be digested by appropriate
     # event handlers.
-    def _sync_event_queue(self, mode='keep', targets=None):
+    def _sync_event_queue(self, mode='keep', targets=None, transition='gradual'):
         """
         This method will consume and recreate the event queue based on the status on self.current_view and the mode
         specified in the mode argument.
@@ -1517,9 +1526,15 @@ class Scenario():
         :param mode: either a string ('keep', 'reset') or a dict {'wild_type': 'keep'/'reset', ...} or a
             list [0, 1, ...] indicating the whether to reset (1) or to keep (0) the recover time for each node
         :param targets: list of node id for which the transmission events should be reset. The default is None
-            leading to all transmission events for all nodes beeing reset.
+            leading to all transmission events for all nodes being reset.
         :return:
         """
+        if transition == 'gradual':
+            keep_therapy = True
+        elif transition == 'immediate':
+            keep_therapy = False
+        else:
+            raise ValueError('The transition argument must either be "gradual" or "immediate"')
         # get the reset mode
         general, pathogen_specific, node_specific = False, False, False
         if type(mode) is list:
@@ -1561,6 +1576,10 @@ class Scenario():
             if nodes_to_deal[node_id]:
                 nodes_to_deal[node_id] = 0
                 token_id = self.current_view[node_id]
+                if keep_therapy:
+                    therapy_id = self.current_therapy[node_id]
+                else:
+                    therapy_id = -1
                 # handle the recover event
                 recover_time = event[0] - self.t
                 if general:  # all nodes are treated the same
@@ -1574,67 +1593,29 @@ class Scenario():
                     if mode[node_id]:
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
                 # now we have the appropriate recover time. The transmission events remain
+                # create the transmission events and add them to the queue
+                self._create_transmission_events(node_id, token_id, recover_time, therapy_id)
                 # add the recover event to the queue
-                # determine the transmission events
-
-
-        nodes_to_deal = map(lambda x: 1 if x != -1 else 0, self.current_view)
-        while len(event_queue_to_check):
-            event = event_queue_to_check.pop()
-            # get the considered node
-            node = event[1][0]
-            if nodes_to_deal[node]:  # if the nodes new state is not susceptible:
-                nodes_to_deal[node] = 0  # this node does not need further attention
-                # get the nodes token
-                token_id = self.current_view[node]
-                # create recover time and infection events for the neighbours if the token is not -1 (susceptible)
-                # get the nodes recover time
-                if general:
-                    if mode != 'keep':
-                        recover_time = self.pathogen.rec_dists[token_id].get_val()
-                    else:
-                        recover_time = event[0] - self.t
-                elif pathogen_specific:
-                    pathogen_name = self.pathogen.names[token_id]
-                    if pathogen_name in mode and mode[pathogen_name] == 'reset':
-                        recover_time = self.pathogen.rec_dists[token_id].get_val()
-                    else:
-                        recover_time = event[0] - self.t
-                else:
-                    if mode[node]:  # 1 means reset
-                        recover_time = self.pathogen.rec_dists[token_id].get_val()
-                    else:
-                        recover_time = event[0] - self.t
-                self.queue.put_nowait(Event(self.t + recover_time, node, -1, True))
-
-                nn = n_copy(self.contact_structure.nn[node])  # get its nearest neighbours
-                if nn.size:  # if he has some neighbours, get the times at which the get infected
-                    inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                else:  # if he has no neighbours, make empty list
-                    inf_times = array([])
-                nn = nn[inf_times < recover_time]  # keep only the neighbours in nn which have an infection time
-                # smaller than the nodes recover_time
-                inf_times = inf_times[inf_times < recover_time]  # same thing for the infection times
-                for x in xrange(inf_times.size):  # put all the infection events of neighbours into the queue
-                    self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node))
-        if nodes_to_deal.count(1):  # if not all nodes are dealt with
+                self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
+            else:
+                raise self.WrongImplementationError('This condition never not be met')
+        if nodes_to_deal.count(1):
+            # TODO: this is possible if SI type of infections, better deal with it.
             while 1 in nodes_to_deal:
-                node = nodes_to_deal.index(1)
-                nodes_to_deal[node] = 0  # this node will be dealt with next time
-                token_id = self.current_view[node]
+                node_id = nodes_to_deal.index(1)
+                nodes_to_deal[node_id] = 0
+                token_id = self.current_view[node_id]
                 if token_id != -1:
+                    # TODO: create self._create_recover_event to handle selection
+                    # we have no recover time so in any way we need to redraw one
                     recover_time = self.pathogen.rec_dists[token_id].get_val()
-                    self.queue.put_nowait(Event(self.t + recover_time, node, -1, True))
-                    nn = n_copy(self.contact_structure.nn[node])  # get its nearest neighbours
-                    if nn.size:  # if he has some neighbours, get the times at which the get infected
-                        inf_times = self.pathogen.trans_dists[token_id].v_get(nn)
-                    else:  # if he has no neighbours, make empty list
-                        inf_times = array([])
-                    nn = nn[inf_times < recover_time]  # keep only the neighbours in nn which have an infection time
-                    # smaller than the nodes recover_time
-                    inf_times = inf_times[inf_times < recover_time]  # same thing for the infection times
-                    for x in xrange(inf_times.size):  # put all the infection events of neighbours into the queue
-                        self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node))
+                    if keep_therapy:
+                        therapy_id = self.current_therapy[node_id]
+                    else:
+                        therapy_id = -1
+                    self._create_transmission_events(node_id, token_id, recover_time, therapy_id)
+                    # add the recover event to the queue
+                    self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
 
     # to do: this method needs some make over ( is not and should not be used at the moment )
     # - self._counts_over_time is not properly defined anymore
