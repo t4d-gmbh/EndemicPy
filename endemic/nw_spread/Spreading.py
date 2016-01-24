@@ -187,6 +187,38 @@ class Scenario():
             self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node_id))
         self._count_per_strains[token_id] += 1  # update the counter of the Strain that is infecting.
 
+    def _create_transmission_events(self, node_id, token_id, recover_time, therapy_id=None):
+        """
+        This method is used whenever a transition is made (e.g. treatment-notreatment) and the
+        transmission events need to be redrawn.
+
+        Note: this method is not used to to handle events. it only creates new ones.
+
+        :param recover_time:
+        :param node_id:
+        :param token_id:
+        :param therapy_id:
+        :return: List of transmission events to be put in the queue
+        """
+        # set id static or dynamic
+        if self.contact_structure.is_static:
+            get_neighbours = self._get_neighbours_static
+        else:
+            get_neighbours = self._get_neighbours_dynamic
+        # draw infection times for all neighbours (use delay + therapy if therapy_id is not none)
+        #nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
+        # get nn and times conditioned on recover_time
+        if therapy_id:
+            delay = self.therapy_delays[therapy_id][node_id]
+            if recover_time > delay:  # if recovery is after the delay.
+                inf_times = where(
+                    start_times + inf_times <= delay,
+                    inf_times,
+                    delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
+                )
+        nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
+        self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+
     def _get_neighbours_static(self, node_id, token_id):
         """
         This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
@@ -1513,11 +1545,37 @@ class Scenario():
         # put all the events back that will not be changed
         for an_event in kept_events:
             self.queue.put_nowait(an_event)
+        # get all the nodes that have a token at the moment
         nodes_to_deal = map(
-            lambda x: 1 if self.current_view[x] != -1 and x in targets else 0, range(len(self.current_view))
+            lambda x: 1 if self.current_view[x] != -1 else 0, range(len(self.current_view))
         )
-
-
+        # if targets is specified, further filter the list for nodes specified in targets
+        if targets is not None:
+            nodes_to_deal = map(
+                lambda x: x if x in targets else 0, nodes_to_deal
+            )
+        # basically create events at self.t and have the event queue digested as long as self.t stay the same.
+        while len(event_queue_to_check):
+            event = event_queue_to_check.pop()
+            node_id = event[1][0]
+            if nodes_to_deal[node_id]:
+                nodes_to_deal[node_id] = 0
+                token_id = self.current_view[node_id]
+                # handle the recover event
+                recover_time = event[0] - self.t
+                if general:  # all nodes are treated the same
+                    if mode != 'keep':  # redraw the recover time
+                        recover_time = self.pathogen.rec_dists[token_id].get_val()
+                elif pathogen_specific:
+                    pathogen_name = self.pathogen.names[token_id]
+                    if pathogen_name in mode and mode[pathogen_name] == 'reset':
+                        recover_time = self.pathogen.rec_dists[token_id].get_val()
+                else:  # for each node separate. 1 means reset, 0 keep
+                    if mode[node_id]:
+                        recover_time = self.pathogen.rec_dists[token_id].get_val()
+                # now we have the appropriate recover time. The transmission events remain
+                # add the recover event to the queue
+                # determine the transmission events
 
 
         nodes_to_deal = map(lambda x: 1 if x != -1 else 0, self.current_view)
