@@ -944,6 +944,7 @@ class Scenario():
                             targets
                         )
                     # the the recovery type
+                    print targets
                     mode = phase.get('monde', 'keep')
                     self._sync_event_queue(mode=mode, targets=targets, transition=transition_type)
                 with_run = False
