@@ -1585,7 +1585,7 @@ class Scenario():
         # if targets is specified, further filter the list for nodes specified in targets
         if targets is not None:
             nodes_to_deal = map(
-                lambda x: x if x in targets else 0, xrange(len(nodes_to_deal))
+                lambda x: 1 if x in targets else 0, xrange(len(nodes_to_deal))
             )
         while len(event_queue_to_check):
             event = event_queue_to_check.pop()
