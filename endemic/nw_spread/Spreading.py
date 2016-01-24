@@ -944,8 +944,7 @@ class Scenario():
                             targets
                         )
                     # the the recovery type
-                    print targets
-                    mode = phase.get('monde', 'keep')
+                    mode = phase.get('mode', 'keep')
                     self._sync_event_queue(mode=mode, targets=targets, transition=transition_type)
                 with_run = False
             if 'reset_recovery' in phase:
@@ -1572,7 +1571,8 @@ class Scenario():
                 if targets and event[1][0] not in targets:
                     # if the node in question is not in the target list it'll go back to the queue
                     kept_events.append(event)
-                elif event[1][1] == -1:
+                # if it is recovery or mutation
+                elif event[1][1] == -1 or not event[1][2]:
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
         # put all the events back that will not be changed
@@ -1582,11 +1582,13 @@ class Scenario():
         nodes_to_deal = map(
             lambda x: 1 if self.current_view[x] != -1 else 0, range(len(self.current_view))
         )
+        print nodes_to_deal
         # if targets is specified, further filter the list for nodes specified in targets
         if targets is not None:
             nodes_to_deal = map(
                 lambda x: x if x in targets else 0, nodes_to_deal
             )
+        print nodes_to_deal
         print nodes_to_deal.count(1)
         while len(event_queue_to_check):
             event = event_queue_to_check.pop()
