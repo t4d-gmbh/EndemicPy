@@ -936,7 +936,6 @@ class Scenario():
                     token_id = self.pathogen.ids[the_token]
                     # get all the nodes which currently have that status
                     targets = filter(lambda i:self.current_view[i] == token_id, xrange(len(self.current_view)))
-                    print len(targets)
                     # further filter for the applied treatment (if any)
                     if the_therapy is not None:
                         therapy_id = self.treatment.ids[the_therapy]
@@ -1615,7 +1614,9 @@ class Scenario():
                 # add the recover event to the queue
                 self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
             else:
-                raise self.WrongImplementationError('This condition should not be met')
+                # this node is in susceptible state, so nothing to do
+                pass
+                print 'check', self.current_view[node_id]
         if nodes_to_deal.count(1):
             while 1 in nodes_to_deal:
                 node_id = nodes_to_deal.index(1)
