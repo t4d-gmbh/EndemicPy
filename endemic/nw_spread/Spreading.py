@@ -1012,7 +1012,6 @@ class Scenario():
                 with_run = False
             if 'shuffle' in phase:
                 shuffle = phase.pop('shuffle')
-                mode = shuffle.pop('mode', 'keep')
                 # write it to the simulation log
                 #print self.current_view
                 #print self.current_view.count(0), self.current_view.count(1)
@@ -1034,20 +1033,32 @@ class Scenario():
                 # lists of all the nodes with target resp source tokens
                 targets = []
                 sources = []
-                # list of all the tokens to redistribute
+                # list of all the tokens to redistribute (a token is a tuple here (token, therapy_id, infection_type)
                 sources_tokens = []
                 # build up the new current view
                 new_current_view = []
+                new_current_therapy = []
+                new_current_infection_type = []
                 current_view = self.current_view
+                current_therapy = self.current_therapy
+                current_infection_type = self.current_infection_type
+                # this will
+                from_to_map = range(len(self.current_view))
                 for node in xrange(len(current_view)):
                     new_current_view.append(current_view[node])  # this might change later
+                    new_current_therapy.append(current_therapy[node])
+                    new_current_infection_type.append(current_infection_type[node])
+                    # if the node belongs to the target group, add it to the targets
                     if current_view[node] in target_ids:
                         targets.append(node)
+                    # if the node belongs to the source group add it to the sources
                     if current_view[node] in source_ids:
                         sources.append(node)
                         # add the node's token to the token to redistribute list
-                        sources_tokens.append(current_view[node])
+
+                        sources_tokens.append((current_view[node], current_therapy[node], current_infection_type[node]))
                         # if we have substitutes for the source token, choose a random substitute
+                        # NOTE: substitutes only work for token not for therapies
                         if substitute_ids:
                             new_current_view[-1] = _get_rand_el(substitute_ids)
                 # as long as not all token have been redistributed
@@ -1055,25 +1066,31 @@ class Scenario():
                     # pick a node from the targets
                     a_node = _pick_rand_el(targets)
                     # get this node a new token
-                    new_token = _pick_rand_el(sources_tokens)
+                    new_token, new_therapy, new_infection_type = _pick_rand_el(sources_tokens)
                     # give the node the new token
                     new_current_view[a_node] = new_token
+                    new_current_therapy[a_node] = new_therapy
+                    new_current_infection_type[a_node] = new_infection_type
                 # the token are redistributed now
                 # update the current view with the new view
                 self.current_view = new_current_view
-                # recreate the event queue (adding new infection events)
-                # to do: the recreation of the queue works only without treatment and selection here
-                if mode in ['keep', 'reset']:
-                    self._sync_event_queue(mode=mode)
-                else: 
-                    raise self.NoneImplementationError(
-                        'shuffle phase with a mode different from "keep" or "reset" has not yet been implemented.'
-                    )
+                self.current_therapy = new_current_therapy
+                self.current_infection_type = new_current_infection_type
+                with_run = False
+
+                # TODO: This was present in the old version, the new version requires to run the 'reset_transmission'
+                #       phase to complete the transmission events resetting.
+                # if mode in ['keep', 'reset']:
+                #     self._sync_event_queue(mode=mode)
+                # else:
+                #     raise self.NoneImplementationError(
+                #         'shuffle phase with a mode different from "keep" or "reset" has not yet been implemented.'
+                #     )
                 # print self.current_view
                 # update the strain counts
-                for strain_id in self.pathogen.ids.values():
-                    self._count_per_strains[strain_id] = self.current_view.count(strain_id)
-                with_run = False
+                # for strain_id in self.pathogen.ids.values():
+                #     self._count_per_strains[strain_id] = self.current_view.count(strain_id)
+
             if 'add_treatment' in phase:
                 treatment_to_add = phase.pop('add_treatment')
                 if self.treatment is not None:
