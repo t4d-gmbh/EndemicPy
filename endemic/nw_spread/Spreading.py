@@ -1582,17 +1582,16 @@ class Scenario():
         nodes_to_deal = map(
             lambda x: 1 if self.current_view[x] != -1 else 0, range(len(self.current_view))
         )
-        print nodes_to_deal
         # if targets is specified, further filter the list for nodes specified in targets
         if targets is not None:
             nodes_to_deal = map(
-                lambda x: x if x in targets else 0, nodes_to_deal
+                lambda x: x if x in targets else 0, xrange(len(nodes_to_deal))
             )
-        print nodes_to_deal
-        print nodes_to_deal.count(1)
         while len(event_queue_to_check):
             event = event_queue_to_check.pop()
             node_id = event[1][0]
+            new_token = event[1][1]
+            new_inf = event[1][2]
             print 'test', node_id, nodes_to_deal[node_id]
             if nodes_to_deal[node_id]:
                 nodes_to_deal[node_id] = 0
@@ -1616,8 +1615,8 @@ class Scenario():
                 # now we have the appropriate recover time. The transmission events remain
                 # create the transmission events and add them to the queue
                 self._create_transmission_events(node_id, token_id, recover_time, therapy_id)
-                # add the recover event to the queue
-                self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
+                # add the recover event to the queue (or mutation)
+                self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf,))
             else:
                 # this node is in susceptible state, so nothing to do
                 pass
