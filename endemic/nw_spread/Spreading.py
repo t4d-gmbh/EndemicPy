@@ -1586,9 +1586,11 @@ class Scenario():
             nodes_to_deal = map(
                 lambda x: x if x in targets else 0, nodes_to_deal
             )
+        print nodes_to_deal.count(1)
         while len(event_queue_to_check):
             event = event_queue_to_check.pop()
             node_id = event[1][0]
+            print 'test', node_id, nodes_to_deal[node_id]
             if nodes_to_deal[node_id]:
                 nodes_to_deal[node_id] = 0
                 token_id = self.current_view[node_id]
@@ -1616,7 +1618,6 @@ class Scenario():
             else:
                 # this node is in susceptible state, so nothing to do
                 pass
-                print 'check', self.current_view[node_id]
         if nodes_to_deal.count(1):
             while 1 in nodes_to_deal:
                 node_id = nodes_to_deal.index(1)
