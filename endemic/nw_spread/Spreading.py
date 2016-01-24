@@ -856,7 +856,7 @@ class Scenario():
                 # target: set of potential target hosts
             if 'reset_transmission' in phase:
                 reset_transmission = phase.pop('reset_transmission', None)
-                if isinstance(reset_transmission, bool) and reset_transmission:
+                if isinstance(reset_transmission, (bool, int)) and reset_transmission:
                     # reset all the transmission events if the value is True
                     mode = phase.get('mode', 'keep')
                     self._sync_event_queue(mode=mode)
@@ -868,35 +868,43 @@ class Scenario():
                         # the list is a list of tokens (could be with therapies)
                         targets = []
                         for a_token in reset_transmission:
-                            # split the therapy from the token
-                            # get the id of the token
-                            # get the id of the therapy
-                            # get the nodes with this token
-                            # filter the nodes for the therapy id (if existing)
-                            # extend the target list
+                            if ';' in a_token:
+                                the_token, the_therapy = a_token.split(';')
+                            else:
+                                the_token, the_therapy = a_token, None
+                            token_id = self.pathogen.ids[the_token]
+                            adding_targets = filter(
+                                lambda i:self.current_view[i] == token_id,
+                                xrange(len(self.current_view))
+                            )
+                            if the_therapy is not None:
+                                therapy_id = self.treatment.ids[the_therapy]
+                                adding_targets = filter(
+                                    lambda i:self.current_therapy[i] == therapy_id,
+                                    adding_targets
+                                )
+                            targets.extend(adding_targets)
                         mode = phase.get('mode', 'keep')
                         self._sync_event_queue(mode=mode, targets=targets)
                 elif isinstance(reset_transmission, str):
-                    # in this case a single token (eventually along with a therapy id) is given
+                    # reset for a certain strain only. e.g. mutant, wild_type, wild_type;drug1
                     if ';' in reset_transmission:
                         the_token, the_therapy = reset_transmission.split(';')
                     else:
-                        the_token = reset_transmission
-                        the_therapy = None
-                    # get id of the_token
-                    # get id of the therapy (if existing)
-                    # the the node ids with this token
-                    # filter them for the therapy id (if exising)
-                    # pass the targets to self._sync...
-
-                    self._sync_event_queue(mode=reset_transmission)
-                elif isinstance(reset_transmission, str):
-                    # reset for a certain strain only. e.g. mutant, wild_type, wild_type;drug1
-
-
-                if phase['reset_transmission']:
-                    mode = phase.get('mode', 'keep')
-                    self._sync_event_queue(mode=mode)
+                        the_token, the_therapy = reset_transmission, None
+                    token_id = self.pathogen.ids[the_token]
+                    # get all the nodes which currently have that status
+                    targets = filter(lambda i:self.current_view[i] == token_id, xrange(len(self.current_view)))
+                    # further filter for the applied treatment (if any)
+                    if the_therapy is not None:
+                        therapy_id = self.treatment.ids[the_therapy]
+                        targets = filter(
+                            lambda i:self.current_therapy[i] == therapy_id,
+                            targets
+                        )
+                    # the the recovery type
+                    mode = phase.get('monde', 'keep')
+                    self._sync_event_queue(mode=mode, targets=targets)
                 with_run = False
             if 'reset_recovery' in phase:
                 if phase['reset_recovery']:
@@ -1488,20 +1496,33 @@ class Scenario():
             pathogen_specific = True
         else:  # node_specific == True
             general = True
-        event_queue = []
+        event_queue_to_check = []
+        kept_events = []
         while True:
             try:
                 event = self.queue.get_nowait()
             except Empty:
                 break
             else:
-                # TODO: we might want to keep some transmission events. -> add a filter
-                # filter infection events
-                if event[1][1] == -1:  # just take the recover events
-                    event_queue.append(event)
+                if targets and event[1][0] not in targets:
+                    # if the node in question is not in the target list it'll go back to the queue
+                    kept_events.append(event)
+                elif event[1][1] == -1:
+                    # in any other case only keep the recover event
+                    event_queue_to_check.append(event)
+        # put all the events back that will not be changed
+        for an_event in kept_events:
+            self.queue.put_nowait(an_event)
+        nodes_to_deal = map(
+            lambda x: 1 if self.current_view[x] != -1 and x in targets else 0, range(len(self.current_view))
+        )
+
+
+
+
         nodes_to_deal = map(lambda x: 1 if x != -1 else 0, self.current_view)
-        while len(event_queue):
-            event = event_queue.pop()
+        while len(event_queue_to_check):
+            event = event_queue_to_check.pop()
             # get the considered node
             node = event[1][0]
             if nodes_to_deal[node]:  # if the nodes new state is not susceptible:
