@@ -896,15 +896,15 @@ class Scenario():
             if 'reset_transmission' in phase:
                 reset_transmission = phase.pop('reset_transmission', None)
                 to_reset = reset_transmission.get('target_nodes')
-                transition_type = reset_transmission.get('transition_type')
+                transition_type = reset_transmission.get('transition_type')  # either 'gradual' or 'immediate'
                 if isinstance(to_reset, (bool, int)) and to_reset:
                     # reset all the transmission events if the value is True
                     mode = phase.get('mode', 'keep')
-                    self._sync_event_queue(mode=mode)
+                    self._sync_event_queue(mode=mode, targets=None, transition=transition_type)
                 elif isinstance(to_reset, list):
                     if not any([isinstance(an_el, str) for an_el in to_reset]):
                         # in this case for each node the reset status is set
-                        self._sync_event_queue(mode='keep', targets=to_reset)
+                        self._sync_event_queue(mode='keep', targets=to_reset, transition=transition_type)
                     else:
                         # the list is a list of tokens (could be with therapies)
                         targets = []
@@ -926,7 +926,7 @@ class Scenario():
                                 )
                             targets.extend(adding_targets)
                         mode = phase.get('mode', 'keep')
-                        self._sync_event_queue(mode=mode, targets=targets)
+                        self._sync_event_queue(mode=mode, targets=targets, transition=transition_type)
                 elif isinstance(to_reset, str):
                     # reset for a certain strain only. e.g. mutant, wild_type, wild_type;drug1
                     if ';' in to_reset:
@@ -945,7 +945,7 @@ class Scenario():
                         )
                     # the the recovery type
                     mode = phase.get('monde', 'keep')
-                    self._sync_event_queue(mode=mode, targets=targets)
+                    self._sync_event_queue(mode=mode, targets=targets, transition=transition_type)
                 with_run = False
             if 'reset_recovery' in phase:
                 if phase['reset_recovery']:
@@ -1457,7 +1457,7 @@ class Scenario():
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
             if logger_mode:
-                #print 'is in logger mode. Current time: %s, next_check %s' % (self.t, t_next_bin)
+                # print 'is in logger mode. Current time: %s, next_check %s' % (self.t, t_next_bin)
                 while self.t < t_stop:
                     try:
                         (time, n_event) = self.queue.get_nowait()
@@ -1600,7 +1600,6 @@ class Scenario():
             else:
                 raise self.WrongImplementationError('This condition never not be met')
         if nodes_to_deal.count(1):
-            # TODO: this is possible if SI type of infections, better deal with it.
             while 1 in nodes_to_deal:
                 node_id = nodes_to_deal.index(1)
                 nodes_to_deal[node_id] = 0
