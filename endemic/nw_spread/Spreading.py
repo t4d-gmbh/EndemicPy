@@ -1550,6 +1550,7 @@ class Scenario():
             keep_therapy = True
         elif transition == 'immediate':
             keep_therapy = False
+        print keep_therapy
         else:
             raise ValueError('The transition argument must either be "gradual" or "immediate"')
         # get the reset mode
