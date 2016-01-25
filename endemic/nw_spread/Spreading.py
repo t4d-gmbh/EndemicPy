@@ -1592,7 +1592,6 @@ class Scenario():
             node_id = event[1][0]
             new_token = event[1][1]
             new_inf = event[1][2]
-            print 'test', node_id, nodes_to_deal[node_id]
             if nodes_to_deal[node_id]:
                 nodes_to_deal[node_id] = 0
                 token_id = self.current_view[node_id]
@@ -1600,6 +1599,8 @@ class Scenario():
                     therapy_id = self.current_therapy[node_id]
                 else:
                     therapy_id = -1
+                    # reset the current_therapy status
+                    self.current_therapy[node_id] = -1
                 # handle the recover event
                 recover_time = event[0] - self.t
                 if general:  # all nodes are treated the same
