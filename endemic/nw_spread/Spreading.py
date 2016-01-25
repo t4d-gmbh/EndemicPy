@@ -921,7 +921,7 @@ class Scenario():
                             if the_therapy is not None:
                                 therapy_id = self.treatment.ids[the_therapy]
                                 adding_targets = filter(
-                                    lambda i:self.current_therapy[i] == therapy_id,
+                                    lambda i: self.current_therapy[i] == therapy_id,
                                     adding_targets
                                 )
                             targets.extend(adding_targets)
@@ -940,7 +940,7 @@ class Scenario():
                     if the_therapy is not None:
                         therapy_id = self.treatment.ids[the_therapy]
                         targets = filter(
-                            lambda i:self.current_therapy[i] == therapy_id,
+                            lambda i: self.current_therapy[i] == therapy_id,
                             targets
                         )
                     # the the recovery type
@@ -1552,7 +1552,6 @@ class Scenario():
             keep_therapy = False
         else:
             raise ValueError('The transition argument must either be "gradual" or "immediate"')
-        print keep_therapy
         # get the reset mode
         general, pathogen_specific, node_specific = False, False, False
         if type(mode) is list:
@@ -1867,9 +1866,6 @@ class Scenario():
 
         # patch: there was a name change: now it's self.current_therapy:
         self.__dict__['current_therapy'] = self.__dict__['current_treatment']
-
-
-
 
 
 # issue: Make this a static method of Spreading?
