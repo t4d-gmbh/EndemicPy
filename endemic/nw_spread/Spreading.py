@@ -1595,14 +1595,18 @@ class Scenario():
             if nodes_to_deal[node_id]:
                 nodes_to_deal[node_id] = 0
                 token_id = self.current_view[node_id]
+                # handle the recover event
+                recover_time = event[0] - self.t
                 if keep_therapy:
                     therapy_id = self.current_therapy[node_id]
                 else:
                     therapy_id = -1
                     # reset the current_therapy status
                     self.current_therapy[node_id] = -1
-                # handle the recover event
-                recover_time = event[0] - self.t
+                    if not new_inf:
+                        # if the event was a mutation but we stop treatment, we need a recover time
+                        recover_time = self.pathogen.rec_dists[token_id].get_val()
+                        new_inf = True
                 if general:  # all nodes are treated the same
                     if mode != 'keep':  # redraw the recover time
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
