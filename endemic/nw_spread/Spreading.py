@@ -1634,6 +1634,7 @@ class Scenario():
                         therapy_id = self.current_therapy[node_id]
                     else:
                         therapy_id = -1
+                        self.current_therapy[node_id] = -1
                     self._create_transmission_events(node_id, token_id, recover_time, therapy_id)
                     # add the recover event to the queue
                     self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
