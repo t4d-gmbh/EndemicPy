@@ -1681,6 +1681,9 @@ class Scenario():
         # if not count_nonzero(self._counts_over_time[int(self.t)][surviving_strain_ids]):
         if not all([s_id in self.current_view for s_id in surviving_strain_ids]):
             print 'a protected strain died out at t= ', self.t
+            # debugging
+            print [self.current_view.count(x) for x in [0, 1]]
+            # done
             return 1
         else:
             return 0
