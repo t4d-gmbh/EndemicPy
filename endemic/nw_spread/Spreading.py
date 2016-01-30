@@ -691,7 +691,7 @@ class Scenario():
                     # ##
                     if self.selecting[token_id]:
                         selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                        if selection_times[selected_strain_id] < recover_time:  #if the mutation is before the recovering
+                        if selection_times[selected_strain_id] < recover_time:  # if the mutation is before the recovering
                             recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
                             new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
                             # for a subsequent event.
@@ -1576,18 +1576,11 @@ class Scenario():
                     kept_events.append(event)
                 # if it is recovery or mutation
                 elif event[1][1] == -1 or not event[1][2]:
-                    #d
-                    if event[1][1] == -1:
-                        recoverors.append(event[1][0])
-                    if not event[1][2]:
-                        mutators.append(event[1][0])
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
                 else:
                     pass  # this is a target node infecting another
         # put all the events back that will not be changed
-        # d
-        print '\t\t\trecoverors\n\%s\n\t\t\tmutators\n%s' % (recoverors, mutators)
         for an_event in kept_events:
             self.queue.put_nowait(an_event)
         # get all the nodes that have a token at the moment
@@ -1694,9 +1687,6 @@ class Scenario():
         # if not count_nonzero(self._counts_over_time[int(self.t)][surviving_strain_ids]):
         if not all([s_id in self.current_view for s_id in surviving_strain_ids]):
             print 'a protected strain died out at t= ', self.t
-            # debugging
-            print [self.current_view.count(x) for x in [0, 1]]
-            # done
             return 1
         else:
             return 0
