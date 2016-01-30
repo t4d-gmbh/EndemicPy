@@ -1583,6 +1583,8 @@ class Scenario():
                         mutators.append(event[1][0])
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
+                else:
+                    raise ValueError('This should not happen. Could not handle event:\n\t%s' % event)
         # put all the events back that will not be changed
         # d
         print '\t\t\trecoverors\n\%s\n\t\t\tmutators\n%s' % (recoverors, mutators)
@@ -1617,6 +1619,7 @@ class Scenario():
                         # if the event was a mutation but we stop treatment, we need a recover time
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
                         new_inf = True
+                        new_token = -1  # recover instead of mutation
                 if general:  # all nodes are treated the same
                     if mode != 'keep':  # redraw the recover time
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
@@ -1633,7 +1636,7 @@ class Scenario():
                 # add the recover event to the queue (or mutation)
                 self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf,))
             else:
-                # this node is in susceptible state, so nothing to do
+                # can happen if a node appears several times in an event
                 pass
         if nodes_to_deal.count(1):
             while 1 in nodes_to_deal:
