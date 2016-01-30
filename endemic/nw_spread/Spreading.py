@@ -915,13 +915,13 @@ class Scenario():
                                 the_token, the_therapy = a_token, None
                             token_id = self.pathogen.ids[the_token]
                             adding_targets = filter(
-                                lambda i:self.current_view[i] == token_id,
+                                lambda k: self.current_view[k] == token_id,
                                 xrange(len(self.current_view))
                             )
                             if the_therapy is not None:
                                 therapy_id = self.treatment.ids[the_therapy]
                                 adding_targets = filter(
-                                    lambda i: self.current_therapy[i] == therapy_id,
+                                    lambda l: self.current_therapy[l] == therapy_id,
                                     adding_targets
                                 )
                             targets.extend(adding_targets)
@@ -935,7 +935,7 @@ class Scenario():
                         the_token, the_therapy = to_reset, None
                     token_id = self.pathogen.ids[the_token]
                     # get all the nodes which currently have that status
-                    targets = filter(lambda i:self.current_view[i] == token_id, xrange(len(self.current_view)))
+                    targets = filter(lambda j: self.current_view[j] == token_id, xrange(len(self.current_view)))
                     # further filter for the applied treatment (if any)
                     if the_therapy is not None:
                         therapy_id = self.treatment.ids[the_therapy]
@@ -1562,6 +1562,9 @@ class Scenario():
             general = True
         event_queue_to_check = []
         kept_events = []
+        # d
+        mutators = []
+        recoverors = []
         while True:
             try:
                 event = self.queue.get_nowait()
@@ -1573,9 +1576,16 @@ class Scenario():
                     kept_events.append(event)
                 # if it is recovery or mutation
                 elif event[1][1] == -1 or not event[1][2]:
+                    #d
+                    if event[1][1] == -1:
+                        recoverors.append(event[1][0])
+                    if not event[1][2]:
+                        mutators.append(event[1][0])
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
         # put all the events back that will not be changed
+        # d
+        print '\t\t\trecoverors\n\%s\n\t\t\tmutators\n%s' % (recoverors, mutators)
         for an_event in kept_events:
             self.queue.put_nowait(an_event)
         # get all the nodes that have a token at the moment
