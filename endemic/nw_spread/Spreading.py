@@ -1584,7 +1584,7 @@ class Scenario():
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
                 else:
-                    raise ValueError('This should not happen. Could not handle event:\n\t%s' % event)
+                    pass  # this is a target node infecting another
         # put all the events back that will not be changed
         # d
         print '\t\t\trecoverors\n\%s\n\t\t\tmutators\n%s' % (recoverors, mutators)
