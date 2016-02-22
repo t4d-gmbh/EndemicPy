@@ -204,15 +204,15 @@ class ContactSequence(ContactStructure):
         )
         return nn, self.starts[the_filter], self.stops[the_filter]
 
-    def get_nodes_by_lifetime(self, time_start, time_stop):
+    def get_nodes_by_lifetime(self, t):
         """
-        Returns all nodes that are "active" (as specified by TemporalGraph.nodes_start and TemporalGraph.nodes_end.
+        Returns all nodes that are "active" (as specified by TemporalGraph.nodes_start and TemporalGraph.nodes_end) at
+        time t.
 
-        :param time_start:
-        :param time_stop:
+        :param t:
         :return:
         """
-        node_indices = np.logical_and(self.nodes_start < time_stop, self.nodes_end > time_start)
+        node_indices = np.logical_and(self.nodes_start < t, self.nodes_end > t)
 
         return [i for i in xrange(len(node_indices)) if node_indices[i]]
 

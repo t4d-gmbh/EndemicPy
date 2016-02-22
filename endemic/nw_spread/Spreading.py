@@ -423,19 +423,16 @@ class Scenario():
                 for node_id in strain[name]:
                     # create infection events for the specified node. See Event class for further details
                     self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False, ))
-            # if a dictionary is given, infect random node between t_start and t_end
+            # if a dictionary is given, infect random node at time t_inf
             elif isinstance(strain[name], dict):
-                t_start = strain[name].get('t_start', self.contact_structure.t_start)
-                t_end = strain[name].get('t_end', self.contact_structure.t_stop)
+                t_inf = strain[name].get('t_inf', self.contact_structure.t_start)
                 num_infections = strain[name].get('num_infections', 1)
-                candidadate_nodes = self.contact_structure.get_nodes_by_lifetime(t_start, t_end)
-                # print "Candidates: " + str(candidadate_nodes)
+                candidadate_nodes = self.contact_structure.get_nodes_by_lifetime(t_inf)
                 if len(candidadate_nodes) < num_infections:
                     raise self.InitiateInfectionError('Not enough hosts in given time span to introduce %s infections'
                                                       % num_infections)
                 for node_id in random.sample(candidadate_nodes, num_infections):
-                    self.queue.put_nowait(Event((t_start + t_end)/2.0, node_id, self.pathogen.ids[name], False, ))
-                    # print "infected node " + str(node_id)
+                    self.queue.put_nowait(Event(t_inf, node_id, self.pathogen.ids[name], False, ))
             # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
                 self.queue.put_nowait(
