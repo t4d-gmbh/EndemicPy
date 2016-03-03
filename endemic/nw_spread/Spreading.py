@@ -193,6 +193,7 @@ class Scenario():
         transmission events need to be redrawn.
 
         Note: this method is not used to to handle events. it only creates new ones.
+        Note: this is probably only correct for a delay of 0
 
         :param recover_time: must be given in dt from current time
         :param node_id:
@@ -940,7 +941,7 @@ class Scenario():
                     if the_therapy is not None:
                         therapy_id = self.treatment.ids[the_therapy]
                         targets = filter(
-                            lambda i: self.current_therapy[i] == therapy_id,
+                            lambda a_target: self.current_therapy[a_target] == therapy_id,
                             targets
                         )
                     # the the recovery type
@@ -1032,19 +1033,19 @@ class Scenario():
                     substitute_ids = []
                 # lists of all the nodes with target resp source tokens
                 targets = []
-                sources = []
                 # list of all the tokens to redistribute (a token is a tuple here (token, therapy_id, infection_type)
                 sources_tokens = []
                 # build up the new current view
                 new_current_view = []
                 new_current_therapy = []
                 new_current_infection_type = []
-                current_view = self.current_view
-                current_therapy = self.current_therapy
-                current_infection_type = self.current_infection_type
-                # this will
-                from_to_map = range(len(self.current_view))
+                current_view = list(self.current_view)
+                current_therapy = list(self.current_therapy)
+                current_infection_type = list(self.current_infection_type)
+                # this will hold the new node id at the index (the old id)
+                node_id_map = []
                 for node in xrange(len(current_view)):
+                    node_id_map.append(node)
                     new_current_view.append(current_view[node])  # this might change later
                     new_current_therapy.append(current_therapy[node])
                     new_current_infection_type.append(current_infection_type[node])
@@ -1053,22 +1054,26 @@ class Scenario():
                         targets.append(node)
                     # if the node belongs to the source group add it to the sources
                     if current_view[node] in source_ids:
-                        sources.append(node)
                         # add the node's token to the token to redistribute list
-
-                        sources_tokens.append((current_view[node], current_therapy[node], current_infection_type[node]))
+                        sources_tokens.append(
+                            (node, current_view[node], current_therapy[node], current_infection_type[node])
+                        )
                         # if we have substitutes for the source token, choose a random substitute
                         # NOTE: substitutes only work for token not for therapies
                         if substitute_ids:
                             new_current_view[-1] = _get_rand_el(substitute_ids)
+                # ToDo: check if len(targets) is the same as len(source_tokens) if not, we cannot simply run through the
+                # sources_tokens...
                 # as long as not all token have been redistributed
                 while len(sources_tokens):
                     # pick a node from the targets
                     a_node = _pick_rand_el(targets)
                     # get this node a new token
-                    new_token, new_therapy, new_infection_type = _pick_rand_el(sources_tokens)
+                    old_node, new_token, new_therapy, new_infection_type = _pick_rand_el(sources_tokens)
                     # give the node the new token
                     new_current_view[a_node] = new_token
+                    # the old node id maps to the new now.
+                    node_id_map[old_node] = a_node
                     new_current_therapy[a_node] = new_therapy
                     new_current_infection_type[a_node] = new_infection_type
                 # the token are redistributed now
@@ -1076,20 +1081,25 @@ class Scenario():
                 self.current_view = new_current_view
                 self.current_therapy = new_current_therapy
                 self.current_infection_type = new_current_infection_type
-                with_run = False
+                # now we need to sync the event queue:
+                updated_queue = []
+                while True:
+                    try:
+                        event = self.queue.get_nowait()
+                    except Empty:
+                        break
+                    else:
+                        event[1][0] = node_id_map[event[1][0]]
 
-                # TODO: This was present in the old version, the new version requires to run the 'reset_transmission'
-                #       phase to complete the transmission events resetting.
-                # if mode in ['keep', 'reset']:
-                #     self._sync_event_queue(mode=mode)
-                # else:
-                #     raise self.NoneImplementationError(
-                #         'shuffle phase with a mode different from "keep" or "reset" has not yet been implemented.'
-                #     )
-                # print self.current_view
-                # update the strain counts
-                # for strain_id in self.pathogen.ids.values():
-                #     self._count_per_strains[strain_id] = self.current_view.count(strain_id)
+
+                        #### ToDo: you are here
+
+
+
+                        # update also the node from which it came from
+                        # append to updated_queue
+                # put queue_list back to queue
+                with_run = False
 
             if 'add_treatment' in phase:
                 treatment_to_add = phase.pop('add_treatment')
@@ -1590,7 +1600,7 @@ class Scenario():
         # if targets is specified, further filter the list for nodes specified in targets
         if targets is not None:
             nodes_to_deal = map(
-                lambda x: 1 if x in targets else 0, xrange(len(nodes_to_deal))
+                lambda x: 1 if x in targets and nodes_to_deal[x] else 0, xrange(len(nodes_to_deal))
             )
         while len(event_queue_to_check):
             event = event_queue_to_check.pop()
@@ -1602,12 +1612,13 @@ class Scenario():
                 token_id = self.current_view[node_id]
                 # handle the recover event
                 recover_time = event[0] - self.t
+                # ToDo: effects of a therapy on recover_time is not implemented yet
                 if keep_therapy:
                     therapy_id = self.current_therapy[node_id]
                 else:
                     therapy_id = -1
                     # reset the current_therapy status
-                    self.current_therapy[node_id] = -1
+                    self.current_therapy[node_id] = therapy_id
                     if not new_inf:
                         # if the event was a mutation but we stop treatment, we need a recover time
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
@@ -1631,6 +1642,7 @@ class Scenario():
             else:
                 # can happen if a node appears several times in an event
                 pass
+        # would this not mean: there are target nodes (with a token) that have no recover event?
         if nodes_to_deal.count(1):
             while 1 in nodes_to_deal:
                 node_id = nodes_to_deal.index(1)
