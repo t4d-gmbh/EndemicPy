@@ -1090,15 +1090,12 @@ class Scenario():
                         break
                     else:
                         event[1][0] = node_id_map[event[1][0]]
-
-
-                        #### ToDo: you are here
-
-
-
-                        # update also the node from which it came from
-                        # append to updated_queue
-                # put queue_list back to queue
+                        # update the source node:
+                        if event[1][3]:
+                            event[1][3] = node_id_map[event[1][3]]
+                        updated_queue.append(event)
+                while len(updated_queue):
+                    self.queue.put_nowait(updated_queue.pop())
                 with_run = False
 
             if 'add_treatment' in phase:
