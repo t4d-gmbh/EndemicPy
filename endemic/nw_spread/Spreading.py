@@ -1059,7 +1059,7 @@ class Scenario():
                             (node, current_view[node], current_therapy[node], current_infection_type[node])
                         )
                         # if we have substitutes for the source token, choose a random substitute
-                        # NOTE: substitutes only work for token not for therapies
+                        # NOTE: substitutes only work for tokens not for therapies
                         if substitute_ids:
                             new_current_view[-1] = _get_rand_el(substitute_ids)
                 # ToDo: check if len(targets) is the same as len(source_tokens) if not, we cannot simply run through the
@@ -1077,7 +1077,7 @@ class Scenario():
                     new_current_therapy[a_node] = new_therapy
                     new_current_infection_type[a_node] = new_infection_type
                 # the token are redistributed now
-                # update the current view with the new view
+                # update the currents view with the new view
                 self.current_view = new_current_view
                 self.current_therapy = new_current_therapy
                 self.current_infection_type = new_current_infection_type
@@ -1089,6 +1089,7 @@ class Scenario():
                     except Empty:
                         break
                     else:
+                        # map the old node the its new identity
                         event[1][0] = node_id_map[event[1][0]]
                         # update the source node:
                         if event[1][3]:
