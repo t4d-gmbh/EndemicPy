@@ -1544,7 +1544,6 @@ class Scenario():
         This method will consume and recreate the event queue based on the status on self.current_view and the mode
         specified in the mode argument.
 
-
         :type mode: str; list; dict
         :type targets: None; list
         :param mode: either a string ('keep', 'reset') or a dict {'wild_type': 'keep'/'reset', ...} or a
