@@ -834,6 +834,7 @@ class Scenario():
                     'substitute': []}
                     This will redistribute the status of all the hosts infected with either wild_type or mutant_1 among
                     themselves.
+                    Note that only the current views and the node ids in the priority queue are updated.
             'state_change': dict with either 'node' or 'relative' and an optional 'mode'. If 'node', for each node id
                 give a new token. new tokens are either pathogen names or 'susc' for susceptible (later 'r' for
                     resistant)
@@ -1578,10 +1579,11 @@ class Scenario():
             except Empty:
                 break
             else:
-                if targets and event[1][0] not in targets:
-                    # if the node in question is not in the target list it'll go back to the queue
+                if targets and (event[1][0] not in targets or event[1][3] not in targets):
+                    # if the node in question is not in the target list AND an infection is not from a
+                    # node from the target list it'll go back to the queue
                     kept_events.append(event)
-                # if it is recovery or mutation
+                # if it is recovery or mutation add it to the events to check
                 elif event[1][1] == -1 or not event[1][2]:
                     # in any other case only keep the recover event
                     event_queue_to_check.append(event)
