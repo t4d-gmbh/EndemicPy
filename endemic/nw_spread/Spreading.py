@@ -1095,7 +1095,7 @@ class Scenario():
                             new_source = node_id_map[event[1][3]]
                         else:
                             new_source = event[1][3]
-                        event = Event(event[0], node_id_map[event[1][0]], event[1][1], event[1][2]. new_source)
+                        event = Event(event[0], node_id_map[event[1][0]], event[1][1], event[1][2], new_source)
                         updated_queue.append(event)
                 while len(updated_queue):
                     self.queue.put_nowait(updated_queue.pop())
