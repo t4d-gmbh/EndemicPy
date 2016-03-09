@@ -59,11 +59,11 @@ class TemporalGraph(_Graph):
             pass
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        all_nodes = list(np.union1d(self.node1s, self.node2s))
-        n = len(all_nodes)
+        self.all_nodes = list(np.union1d(self.node1s, self.node2s))
+        n = len(self.all_nodes)
 
         def get_id(an_id):
-            return all_nodes.index(an_id)
+            return self.all_nodes.index(an_id)
         v_get_id = np.vectorize(get_id)
 
         self.node1s = v_get_id(self.node1s)
