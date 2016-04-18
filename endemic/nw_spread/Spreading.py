@@ -657,7 +657,7 @@ class Scenario():
             else: 
                 # infection of susceptible host or mutation
                 if nrand.rand() < self.contact_structure.susceptible[node_id][
-                        oken_id
+                        token_id
                         ] or not inf_event:
                     nn, recover_time, inf_times, start_times, stop_times = \
                             get_neighbours(node_id, token_id)
@@ -668,7 +668,8 @@ class Scenario():
                             '%s, %s, %s\n' % (
                                 self.t,
                                 self.contact_structure.all_nodes[node_id],
-                                self.contact_structure.all_nodes[source]
+                                self.contact_structure.all_nodes[source] if
+                                source is not None else 'seed'
                                 )
                             )
                     # This is the method without selection nor treatment, so

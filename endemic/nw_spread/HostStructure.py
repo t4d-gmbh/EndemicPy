@@ -55,11 +55,11 @@ class ContactStructure():
             self.graph_info = from_object.info
             self._hosts = range(from_object.n)
             self.n = from_object.n
+            self.all_nodes = from_object.all_nodes
+            # all_nodes is the matching list between node_ids (the index)
+            # and the actual ids given from the input.
             if self.is_static:
                 self.nn = from_object.nn
-                self.all_nodes = from_object.all_nodes
-                # all_nodes is the matching list between node_ids (the index)
-                # and the actual ids given from the input.
             else:
                 self.nn = None
             if type(susceptible) is dict:
