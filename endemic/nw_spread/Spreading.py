@@ -128,6 +128,9 @@ class Scenario():
         self.selecting = []
         # initialize the priorityqueue which will hold all the events (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
+        self._inf_file_o = None
+        # This will be the stream to an output file to write incremental steps
+        # into.
 
     @staticmethod
     def _cut_times(recover_time, start_times, stop_times, inf_times, nn):
@@ -396,7 +399,6 @@ class Scenario():
     class InitiateInfectionError(Exception):
         pass
 
-    # this is an internal method (_...) so the idea is to never explicitly having to call this method.
     def _initiate_infection(self, strain, ):
         """
         Arguments:
@@ -609,6 +611,81 @@ class Scenario():
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
+
+    # this is the incremental version of the simple event handler. In this
+    # version each change is written to an output file
+    def _handle_event_simple_inc(self, an_event, get_neighbours):
+        """
+        This method handles events in a spreading process without treatment nor
+        selection.
+
+        :param an_event:
+        :param get_neighbours:
+        :param inc_file: opened file to write changes into
+        :return:
+        """
+        node_id, token_id, inf_event, source = an_event
+        # token_id is the id of the pathogen -1 means recovering/dead
+        if token_id == -1:
+            # the Event is recovering
+            old_strain_id = self.current_view[node_id] 
+            # what was the old status of that node.
+            # self.pathogen.rec_types: a list indicating how one recovers
+            # after an infection. The index is the pathogen id and the value is
+            # either 0,1 meaning ether back to susceptible or resistant.
+            self.contact_structure.susceptible[
+                    node_id
+                    ][old_strain_id] = self.pathogen.rec_types[old_strain_id]
+            self.current_view[node_id] = -1 
+            # set the node back to the uninfected state
+            self.current_infection_type[node_id] = -1 
+            # set the infection type back
+            self._count_per_strains[old_strain_id] -= 1 
+            # update the count of number of infected for that strain
+            self._inc_file_o.write(
+                    '%s, %s\n' % (
+                        self.t, self.contact_structure.all_nodes[node_id]
+                        ) 
+                    )
+        else: 
+            #the Event is an infection
+            if inf_event and self.current_view[node_id] != -1: 
+                # infection of infected host: do nothing
+                pass 
+                # NOTE: if super-infections are possible, here they would take
+                # place
+            else: 
+                # infection of susceptible host or mutation
+                if nrand.rand() < self.contact_structure.susceptible[node_id][
+                        oken_id
+                        ] or not inf_event:
+                    nn, recover_time, inf_times, start_times, stop_times = \
+                            get_neighbours(node_id, token_id)
+                    # : if the node is susceptible (this is all before the 'or
+                    # not') or it is actually not an infection event (a
+                    # mutation in this case).
+                    self._inc_file_o.write(
+                            '%s, %s, %s\n' % (
+                                self.t,
+                                self.contact_structure.all_nodes[node_id],
+                                self.contact_structure.all_nodes[source]
+                                )
+                            )
+                    # This is the method without selection nor treatment, so
+                    # not much to be done here
+                    nn, inf_times = self._cut_times(
+                            recover_time, start_times, stop_times, inf_times, nn
+                            )
+                    self.queue.put_nowait(
+                            Event(self.t + recover_time, node_id, -1, True,)
+                            )
+                    # put the recover event
+                    self._create_neighbour_events(
+                            inf_event, nn, inf_times, node_id, token_id
+                            )
+                    # cerate and add the infection events for the neighbours.
+        return 0
+
     def _handle_event_selection(self, an_event, get_neighbours):  #with only selection
         """
         This method handles events in a spreading process with selection (mutation + selection) but without treatment.
@@ -760,6 +837,13 @@ class Scenario():
             'explicit': boolean.
                 This task forces the scenario to provide detailed status reports over the entire simulation.
                 if True, then on every self.dt the current status is written into self.log (slowdown!).
+            'incremental': string.
+                This task only works if explicit==True. It will write every
+                event to the specified output file. Note that the file is
+                opened in append mode so to be able to write several phases
+                into the same file. Be sure to change the file name for each
+                run as otherwise several runs might be written into the same
+                file. 
             'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
                 This task will shuffle in the specified way the infection status of hosts.
                 'target' must be a list of pathogen names and/or 'susc' for susceptible indicating the group of hosts
@@ -984,6 +1068,11 @@ class Scenario():
                     t_stop=t_stop,
                     **phase
                 )
+                if self._inf_file_o:
+                    self._inf_file_o.close()
+                    # close the file stream to the incremental output file if
+                    # it exists.
+                    self._inf_file_o = None
             self._update_phase_in_sim_log()
             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
             try:
@@ -1040,7 +1129,11 @@ class Scenario():
         else:
             get_neighbours = self._get_neighbours_dynamic
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
-        event_handler = self._handle_event_simple
+        if 'incremental' in params:
+            event_handler = self._handle_event_simple_inc
+            self._inc_file_o = open(params['incremental'], 'a')
+        else:
+            event_handler = self._handle_event_simple
         self.treating = []
         self.selecting = []
         # if no selection parameters where provided when initializing the scenario no selection will be attempted no

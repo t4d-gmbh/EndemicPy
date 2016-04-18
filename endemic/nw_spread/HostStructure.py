@@ -13,9 +13,13 @@ class ContactStructure():
         pass
 
     def __init__(self, from_object, susceptible=1, is_static=True):
-        self.is_static = is_static  # whether this is a static or a dynamic (time explicit network)
-        suscept_default = 1  #if any susceptibility information is missing, it will be completed with this value.
-        if isinstance(from_object, list):  # assume it is a list of Host objects:
+        self.is_static = is_static
+        # whether this is a static or a dynamic (time explicit network)
+        suscept_default = 1
+        #if any susceptibility information is missing, it will be completed
+        # with this value.
+        if isinstance(from_object, list):
+            # assume it is a list of Host objects:
             len_hosts = len(from_object)
             self._hosts = []
             self.nn = [[] for _ in xrange(len_hosts)]
@@ -37,18 +41,25 @@ class ContactStructure():
                     its_default = susceptibility.pop('Default')
                 self._susceptible[its_id]['Default'] = its_default
                 for strain_name in susceptibility.keys():
-                    self._susceptible[its_id][strain_name] = susceptibility[strain_name]
+                    self._susceptible[its_id][strain_name] = susceptibility[
+                            strain_name
+                            ]
                     #self.susceptible[its_id] = a_host.susceptible
             _hosts = id_map.values()
             _hosts.sort()
             self._hosts = _hosts
-        elif True:  # it is a _Graph object # to do: set condition on being of _Graph class (with super?)
+        elif True:
+            # it is a _Graph object
+            # ToDo: set condition on being of _Graph class (with super?)
             self.is_static = from_object.is_static
             self.graph_info = from_object.info
             self._hosts = range(from_object.n)
             self.n = from_object.n
             if self.is_static:
                 self.nn = from_object.nn
+                self.all_nodes = from_object.all_nodes
+                # all_nodes is the matching list between node_ids (the index)
+                # and the actual ids given from the input.
             else:
                 self.nn = None
             if type(susceptible) is dict:
