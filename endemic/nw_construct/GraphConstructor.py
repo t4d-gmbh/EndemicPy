@@ -6,9 +6,12 @@ from Queue import Queue
 from copy import copy
 
 #This is the set of possible distributions for the degree.
-Distribution = {'poisson': random.poisson, 'normal': random.normal, 'binomial': random.binomial,
-                'exponential': random.exponential, 'geometric': random.geometric, 'gamma': random.gamma,
-                'power': random.power, 'weibull': random.weibull}
+Distribution = {
+        'poisson': random.poisson, 'normal': random.normal,
+        'binomial': random.binomial, 'exponential': random.exponential,
+        'geometric': random.geometric, 'gamma': random.gamma,
+        'power': random.power, 'weibull': random.weibull
+    }
 allowed_dists = Distribution.keys()
 
 
@@ -17,13 +20,14 @@ class InvalidArgumentError(Exception):
         self.msg = msg
 
 class _Graph():
-    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
-        """
-            This is the basic class for a graph, containing but
+    """
+        This is the basic class for a graph, containing but
         :param nodes:
-        :param edges: Is either a set of tuples containing node ids or node ids and start and stop times
+        :param edges: Is either a set of tuples containing node ids or node ids
+             and start and stop times
         :return:
-        """
+    """
+    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
         self._nodes = nodes if nodes is not None else np.array([])
         self._edges = edges if edges is not None else np.array([])
         self.degrees = None
@@ -48,14 +52,15 @@ class _Graph():
 
 
 class TemporalGraph(_Graph):
-    def __init__(self, source, **params):
-        """
-        Source is the actual data we want to import. In params we can specify if we just want to look at part of the
-        data (e.g. provide 't_start' and 't_stop').
+    """
+        Source is the actual data we want to import. In params we can specify
+            if we just want to look at part of the data (e.g. provide 't_start'
+            and 't_stop').
         :param source:
         :param params:
         :return:
-        """
+    """
+    def __init__(self, source, **params):
         #_Graph.__init__(self)
         self.is_static = False
         self.has_dynamic_nodes = False
