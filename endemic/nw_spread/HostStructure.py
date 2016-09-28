@@ -175,7 +175,9 @@ class ContactNetwork(ContactStructure):
                     resistant to 'resistant_1' and susceptible to all other
                     strains ('Default').
         """
-        ContactStructure.__init__(self, from_object=graph if graph else hosts, is_static=True)
+        ContactStructure.__init__(
+                self, from_object=graph if graph else hosts, is_static=True
+                )
 
     def get_events(self, node_id):
         return self.nn[node_id]
