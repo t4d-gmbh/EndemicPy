@@ -468,7 +468,6 @@ class Scenario():
                             self.contact_structure.get_nodes_by_lifetime(
                                 a_t_inf
                                 )
-                            )
                 else:
                     candidate_nodes = range(self.contact_structure.n)
                 if len(candidadate_nodes) < 1:
@@ -518,6 +517,7 @@ class Scenario():
                                         Current time: %s
                                         Time of infection: %s
                                     """%(self.t, a_t_inf)
+                            )
                         # get the ids of of name and hosts
                         target_id = self.pathogen.ids[a_host]
                         mut_id = self.pathogen.ids[name]
@@ -581,40 +581,39 @@ class Scenario():
                 )
         return 0
 
-    # this method is not used anymore. Could be removed.
-    def initiate_infection(self, strain, ):
-        """
-        Function to set the initial seed for an infection.
-        
-        Arguments:
-            - strains: dict, key the name of a strain, value a list of node id's or
-                'random'. If the value is 'random' then one random host is infected.
-                Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
-                    wild type strain.
-        """
-        self.t = 0
-        for name in strain:
-            if name not in self.pathogen.ids.keys():
-                raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
-            if type(strain[name]) is not str:
-                for node_id in strain[name]:
-                    self.current_view[node_id] = self.pathogen.ids[name]
-            else:
-                self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+    # # this method is not used anymore. Could be removed.
+    # def initiate_infection(self, strain, ):
+    #     """
+    #     Function to set the initial seed for an infection.
+    #     
+    #     Arguments:
+    #         - strains: dict, key the name of a strain, value a list of node id's or
+    #             'random'. If the value is 'random' then one random host is infected.
+    #             Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
+    #                 wild type strain.
+    #     """
+    #     self.t = 0
+    #     for name in strain:
+    #         if name not in self.pathogen.ids.keys():
+    #             raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
+    #         if type(strain[name]) is not str:
+    #             for node_id in strain[name]:
+    #                 self.current_view[node_id] = self.pathogen.ids[name]
+    #         else:
+    #             self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+    #         self._init_queue()
+    #     return 0
 
-            self._init_queue()
-        return 0
-
-    # unused method can be removed (along with self.initiate_infection)
-    def _init_queue(self, ):
-        """
-        Initiate the priority queue according to self.current_view
-        """
-        for node_id in xrange(self.contact_structure.n):
-            if self.current_view[node_id] != -1:
-                self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True, ))
-                self.current_view[node_id] = -1
-        return 0
+    # # unused method can be removed (along with self.initiate_infection)
+    # def _init_queue(self, ):
+    #     """
+    #     Initiate the priority queue according to self.current_view
+    #     """
+    #     for node_id in xrange(self.contact_structure.n):
+    #         if self.current_view[node_id] != -1:
+    #             self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True, ))
+    #             self.current_view[node_id] = -1
+    #     return 0
 
     # here below follow several _handle_event... functions each one of these take an event (node id, token id, inf type,
     # source) as an argumnet (see Event class for further details) and digest it. Based on the event self.current_view
