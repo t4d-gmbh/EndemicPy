@@ -461,6 +461,7 @@ class Scenario():
                         return [_keys], [[_values]]
             t_inf, hosts = _expander(t_inf, hosts)
 
+            print t_inf, hosts
             for i in xrange(len(t_inf)):
                 a_t_inf = t_inf[i]
                 if not self.contact_structure.is_static:
@@ -473,12 +474,15 @@ class Scenario():
                 if len(candidate_nodes) < 1:
                     raise self.InitiateInfectionError(
                             """
-                                No host at time %s to be infected.
+
+ No host at time %s to be infected.
+
                             """%a_t_inf
                             )
                 # now for all the infection times we have a set of present
                 # hosts
                 for a_host in hosts[i]:
+                    print a_host
                     if a_host == 'random':
                         the_host = random.choice(
                                 candidate_nodes
@@ -490,7 +494,7 @@ class Scenario():
                                 )
                             )
                     # if the host is specified by id
-                    if isinstance(a_host, int):
+                    elif isinstance(a_host, int):
                         if a_host not in candidate_nodes:
                             raise self.InitiateInfectionError(
                                     """
@@ -526,7 +530,7 @@ class Scenario():
                         potentials = [
                             filter(
                                 lambda x: x in filter(
-                                    lambda self.current_view[x] == target_id,
+                                    lambda x: self.current_view[x] == target_id,
                                     range(self.contact_structure.n)
                                 ), candidate_nodes
                             )
