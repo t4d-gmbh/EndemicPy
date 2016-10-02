@@ -470,7 +470,7 @@ class Scenario():
                                 )
                 else:
                     candidate_nodes = range(self.contact_structure.n)
-                if len(candidadate_nodes) < 1:
+                if len(candidate_nodes) < 1:
                     raise self.InitiateInfectionError(
                             """
                                 No host at time %s to be infected.
@@ -481,7 +481,7 @@ class Scenario():
                 for a_host in hosts[i]:
                     if a_host == 'random':
                         the_host = random.choice(
-                                candidadate_nodes
+                                candidate_nodes
                                 )
                         self.queue.put_nowait(
                             Event(
@@ -524,12 +524,11 @@ class Scenario():
                         # check if the target pathogen is present in the
                         # population, if not raise an error.
                         potentials = [
-                            xx[0] for xx in filter(
-                                    lambda x: x[1] == target_id,
-                                    zip(
-                                        candidate_nodes,
-                                        self.current_view
-                                    )
+                            filter(
+                                lambda x: x in filter(
+                                    lambda self.current_view[x] == target_id,
+                                    range(self.contact_structure.n)
+                                ), candidate_nodes
                             )
                         ]
                         if not potentials:
