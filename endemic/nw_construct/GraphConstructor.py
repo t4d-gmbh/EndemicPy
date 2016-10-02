@@ -143,23 +143,27 @@ class TemporalGraph(_Graph):
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.memmap.html
         """
 
-        Arguments:
-
+        Parameters:
+        -----------
         :param source:
         :param params: Several arguments depending on the type of
                     the source argument.
-
                     In any case:
                         Mandatory:
                             start_tag: Name of the column containing the
                                 start time/frame tag.
                             stop_tag: Name of the column containing the
                                 stop time/frame tag.
-                            node1_tag: Name of the column with the first participant
-                            node2_tag: Name of the column with the second participant
-                            delimiter: The string delimiting the columns (default: 'TAB'). You can use the actual
-                                string e.g. '\\t' for 'TAB" or choose from: ('TAB', 'space')
-                            string_values: A list of all the columns containing strings as values. All the
+                            node1_tag: Name of the column with the first
+                                participant
+                            node2_tag: Name of the column with the second
+                                participant
+                            delimiter: The string delimiting the columns
+                                (default: 'TAB'). You can use the actual
+                                string e.g. '\\t' for 'TAB" or choose from:
+                                ('TAB', 'space')
+                            string_values: A list of all the columns containing
+                                strings as values. All the
                                 other columns will be converted to floats.
                         Optional:
 
@@ -169,7 +173,8 @@ class TemporalGraph(_Graph):
                     If source is a filename
                         Optional:
                             permitted_values: Default = {}
-                                If 'start_tag' is given, only interactions with a start_tag bigger than this value
+                                If 'start_tag' is given, only interactions with
+                                a start_tag bigger than this value
                                     will be considered.
 
                     If source is an EventQueue:
@@ -189,7 +194,10 @@ class TemporalGraph(_Graph):
                 pass
         except IOError:
             InvalidArgumentError('The file specified does not exist')
-        for arg in ['start_tag', 'stop_tag', 'node1_tag', 'node2_tag', 'string_values', 'delimiter']:
+        for arg in [
+                'start_tag', 'stop_tag', 'node1_tag', 'node2_tag',
+                'string_values', 'delimiter'
+                ]:
             try:
                 if arg == 'delimiter':
                     if params[arg] == 'TAB':
@@ -207,45 +215,68 @@ class TemporalGraph(_Graph):
                 else:
                     setattr(self, arg, params[arg])
             except KeyError:
-                raise InvalidArgumentError('The mandatory argument <%s> was not given.' % arg)
+                raise InvalidArgumentError(
+                        'The mandatory argument <%s> was not given.' % arg
+                        )
         # each event will have this structure
-        self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
+        self._event_structure = [
+                self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag
+                ]
         with open(source, 'r') as f:
-            self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
+            self._file_header = f.readline().rstrip().replace(
+                    '#', ''
+                    ).split(self._file_delimiter)
             data = np.genfromtxt(
                 f,
                 delimiter=self._file_delimiter,
-                unpack=False,  # not sure about that, if for a, b, c = ... syntax
+                # not sure about that, if for a, b, c = ... syntax
+                unpack=False, 
                 autostrip=True,
                 comments='#',
                 names=', '.join(self._file_header),
                 # try to determine type independently
                 dtype=None,
-                usecols=tuple(filter(lambda x: x in self._event_structure, self._file_header))
-            )
+                usecols=tuple(
+                    filter(
+                        lambda x: x in self._event_structure, self._file_header
+                        )
+                    )
+                )
             self.starts = data[self.start_tag]
             self.stops = data[self.stop_tag]
             self._node1s = data[self.node1_tag]
             self._node2s = data[self.node2_tag]
-            # ToDo: Read nodes_start and nodes_end as optional arguments from a text file
+            # ToDo: Read nodes_start and nodes_end as optional arguments from a
+            # text file
 
 
     def _load_from_dict(self, source):
         """
-        Create a temporal graph from a python dictionary. The following keys are mandatory:
+        Create a temporal graph from a python dictionary. The following keys
+            are mandatory:
 
             - starts: a list/array of start times for each event
             - stops: a list/array of end times for each event
-            - node1s: a list/array of IDs for interaction partner 1 for each event
-            - node2s: a list/array of IDs of interaction partner 2 for each event
+            - node1s: a list/array of IDs for interaction partner 1 for each
+                event
+            - node2s: a list/array of IDs of interaction partner 2 for each
+                event
 
             Optional:
-            - t_start: Start of simulation (default: start time of earliest event)
+            - t_start: Start of simulation (default: start time of earliest
+                event)
             - t_end: End of simulation (default: end time of last event)
-            - nodes_start/ nodes_end: Time of start and end of the life-span of every node in the network. Allowed
+            - nodes_start/ nodes_end: Time of start and end of the life-span of
+                every node in the network. Allowed
             types:
-                dictionary: Keys correspond to the node IDs, Values to the time of start/end
-                array: Value at index i corresponds to the time of start/end of individual i
+                dictionary: Keys correspond to the node IDs, Values to the time
+                    of start/end
+                array: Value at index i corresponds to the time of start/end of
+                    individual i
+
+        Parameters:
+        -----------
+        
         :param source:
         :return:
         """
@@ -256,19 +287,27 @@ class TemporalGraph(_Graph):
             self._node1s = np.array(source['node1s'], dtype=np.int64)
             self._node2s = np.array(source['node2s'], dtype=np.int64)
         except KeyError:
-            raise InvalidArgumentError('Loading the temporal graph from a dict failed.\n Here is how to do this'
-                                       ' porperly:\n\n%s' % self._load_from_dict.__doc__)
+            raise InvalidArgumentError(
+                    'Loading the temporal graph from a dict failed.\n Here is'
+                    'how to do this porperly:\n\n%s' % (
+                        self._load_from_dict.__doc__
+                        )
+                    )
 
         # Optional part
-        self.t_start = np.array(source.get('t_start', np.min(self.starts)))
-        self.t_stop = np.array(source.get('t_stop', np.max(self.stops)))
-        self.nodes_start = source.get('nodes_start', None)
-        self.nodes_end = source.get('nodes_end', None)
+        self.t_start = np.array(source.pop('t_start', np.min(self.starts)))
+        self.t_stop = np.array(source.pop('t_stop', np.max(self.stops)))
+        self.nodes_start = source.pop('nodes_start', None)
+        self.nodes_end = source.pop('nodes_end', None)
+
+        # If further data for the nodes is present, pass them to self.params
+        self.host_params = source.get('host_params', {})
 
 
     # ToDo: will be replaced by _load_from_dict
     def _copy_events(self, **params):
-        """ copy events informations from existing arrays given as keyword arguments.
+        """ copy events informations from existing arrays given as keyword
+            arguments.
 
         Parameters
         ----------
