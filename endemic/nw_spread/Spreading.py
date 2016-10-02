@@ -461,7 +461,7 @@ class Scenario():
                         return [_keys], [[_values]]
             t_inf, hosts = _expander(t_inf, hosts)
 
-            print t_inf, hosts
+            # now the infections are set for the specified strain
             for i in xrange(len(t_inf)):
                 a_t_inf = t_inf[i]
                 if not self.contact_structure.is_static:
@@ -482,7 +482,6 @@ class Scenario():
                 # now for all the infection times we have a set of present
                 # hosts
                 for a_host in hosts[i]:
-                    print a_host
                     if a_host == 'random':
                         the_host = random.choice(
                                 candidate_nodes
@@ -572,16 +571,6 @@ class Scenario():
                         self.queue.put_nowait(
                                 Event(a_t_inf, new_mutated, mut_id, False, )
                                 )
-            else:
-                raise self.InitiateInfectionError(
-                    """
-                        The new infection event failed.
-                        Have a look at how to specify an infection event:
-                        {}
-                    """ .format(
-                        self._initiate_infection.__doc__
-                    )
-                )
         return 0
 
     # # this method is not used anymore. Could be removed.
