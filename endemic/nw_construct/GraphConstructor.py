@@ -184,7 +184,7 @@ class TemporalGraph(_Graph):
         if nodes is not None:
             self.nodes = nodes
             self.o_ids = [node.uid for node in self.nodes]
-            self.n = len(self.o_ids)
+            n = len(self.o_ids)
             self.nodes_start = np.array([node.start for node in self.nodes])
             self.nodes_end = np.array([node.stop for node in self.nodes])
             if node_import is not None:
@@ -197,22 +197,22 @@ class TemporalGraph(_Graph):
             if events is not None:
                 events.sort(key=lambda x:x[event_keys['start']])
                 self._node1s = [
-                    an_event.pop(event_keys['node1']) for an_event in events
+                    an_event.get(event_keys['node1']) for an_event in events
                     ]
                 #self.node1s = [
                 #    Node.get_node(node)._id for node in self._node1s
                 #    ]
                 self._node2s = [
-                    an_event.pop(event_keys['node2']) for an_event in events
+                    an_event.get(event_keys['node2']) for an_event in events
                     ]
                 #self.node2s = [
                 #    Node.get_node(node)._id for node in self._node2s
                 #    ]
                 self.starts = [
-                    an_event.pop(event_keys['start']) for an_event in events
+                    an_event.get(event_keys['start']) for an_event in events
                     ]
                 self.stops = [
-                    an_event.pop(event_keys['stop']) for an_event in events
+                    an_event.get(event_keys['stop']) for an_event in events
                     ]
                 self.event_params = events
         elif events is not None:
@@ -233,6 +233,7 @@ class TemporalGraph(_Graph):
             n = len(self.o_ids)
         # now we need to remap the node ids
         mapper = {val: key for key, val in enumerate(self.o_ids)}
+        print mapper
         get_element = lambda k: mapper.get(k)
         v_get_id = np.vectorize(get_element)
 
@@ -240,6 +241,7 @@ class TemporalGraph(_Graph):
         # self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
+        print self.node1s
 
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
@@ -302,8 +304,9 @@ class TemporalGraph(_Graph):
             # in this case self.o_ids has to be a list of integers with all
             # integer values up to n that map to positions in nodes_start and
             # nodes_end. Simply re-map positions...
-            self.nodes_start = self.nodes_start[vectorize_func(xrange(self.n))]
-            self.nodes_end = self.nodes_end[vectorize_func(xrange(self.n))]
+            print vectorize_func(xrange(self.n))
+            self.nodes_start = self.nodes_start[vectorize_func(self.o_ids)]
+            self.nodes_end = self.nodes_end[vectorize_func(self.o_ids)]
         else:
             InvalidArgumentError(
                     'The arguments <nodes_start> and <nodes_end> have to be '\
