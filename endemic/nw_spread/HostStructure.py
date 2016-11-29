@@ -31,24 +31,29 @@ class ContactStructure():
         self.o_ids = []  
         # assume it is a list of Host objects:
         if isinstance(from_object, list): 
+            len_hosts = len(from_object)
             if self.is_static:
-                len_hosts = len(from_object)
-                self._hosts = []
                 self.nn = [[] for _ in xrange(len_hosts)]
-                self._susceptible = [{} for _ in xrange(len_hosts)]
-                for a_host in from_object:
-                    self._hosts.append(a_host.ID)
-                self._hosts.sort()
-                self.n = len(self._hosts)  # gives the number of hosts
-                self._check_integrity()
-                id_map = {}
-                for val in self._hosts:
-                    id_map[val] = self._hosts.index(val)
-                for a_host in from_object:
-                    its_id = id_map[a_host.ID]
+            else:
+                self.nn = None
+            self._hosts = []
+            self._susceptible = [{} for _ in xrange(len_hosts)]
+            for a_host in from_object:
+                self._hosts.append(a_host._id)
+            self._hosts.sort()
+            self.n = len(self._hosts)  # gives the number of hosts
+            self._check_integrity()
+            id_map = {}
+            for val in self._hosts:
+                id_map[val] = self._hosts.index(val)
+            for a_host in from_object:
+                its_id = id_map[a_host._id]
+                if self.is_static:
                     self.nn[its_id] = a_host.neighbours
-                    its_default = suscept_default
-                    susceptibility = a_host.susceptible
+                its_default = suscept_default
+                susceptibility = a_host.susceptible if \
+                        a_host.susceptible is not None else its_default
+                if isinstance(susceptibility, dict):
                     if 'Default' in susceptibility:
                         its_default = susceptibility.pop('Default')
                     self._susceptible[its_id]['Default'] = its_default
@@ -57,23 +62,25 @@ class ContactStructure():
                                 its_id
                                 ][strain_name] = susceptibility[strain_name]
                         #self.susceptible[its_id] = a_host.susceptible
-                _hosts = id_map.values()
-                _hosts.sort()
-                self._hosts = _hosts
-                # create the original ID's list
-                inv_id_map = {v: k for k, v in id_map.iteritems()}
-                index_keys = inv_id_map.keys()
-                index_keys.sort()
-                self.o_ids = [inv_id_map[a_key] for a_key in index_keys]
-            else:
-                # ToDo: Create ContactStructure with a list of 'temporal' host
-                # objects.
-                raise self.ImplementationMissingError(
-                """
-                    Creating a ContactStructure with a list of 'temporal'
-                    Host objects is not implemented.
-                """
-                )
+                elif type(susceptibility) is float or \
+                        type(susceptibility) is int:
+                    self._susceptible[its_id] = {
+                            'Default': susceptibility
+                            }
+            _hosts = id_map.values()
+            _hosts.sort()
+            self._hosts = _hosts
+            # create the original ID's list
+            inv_id_map = {v: k for k, v in id_map.iteritems()}
+            index_keys = inv_id_map.keys()
+            index_keys.sort()
+            self.o_ids = [inv_id_map[a_key] for a_key in index_keys]
+            #raise self.ImplementationMissingError(
+            #"""
+            #    Creating a ContactStructure with a list of 'temporal'
+            #    Host objects is not implemented.
+            #"""
+            #)
         # it is a _Graph object
         # to do: set condition on being of _Graph class (with super?)
         elif True:
@@ -205,22 +212,89 @@ class ContactNetwork(ContactStructure):
 
 
 class ContactSequence(ContactStructure):
-    def __init__(self, temporal_graph=None, **params):
-        self.starts = temporal_graph.starts
-        self.stops = temporal_graph.stops
-        self.node1s = temporal_graph.node1s
-        self.node2s = temporal_graph.node2s
-        self.t_start = params.get('t_start', np.min(self.starts))
-        self.t_stop = params.get('t_stop', np.max(self.stops))
-        self.nodes_start = temporal_graph.nodes_start
-        self.nodes_end = temporal_graph.nodes_end
-        ContactStructure.__init__(self, from_object=temporal_graph, is_static=False,
-                                  has_dynamic_nodes=temporal_graph.has_dynamic_nodes)
+    def __init__(
+            self, hosts=None, events=None, event_keys=None,
+            temporal_graph=None, **params
+            ):
+        """
+        The ContactSequence class defines a temporal network. Instances of this 
+        class can either be defined using a list of hosts with a list of events
+        or with a temporal_graph object.
+
+        Parameter:
+        ----------
+        :param hosts: a list of Host instances. If this argument is not provided
+            either the events or the temporal_graph arguments need to be
+            provided.
+        :param events: a list of events, each element must contain a start, stop
+            node1 and node2. The elements can be lists itself or dicts. If 
+            events is not provided the host or temporal_graph attribute must
+            be provided.
+        :param event_keys: a dictionary mapping the following keys:
+            'start', 'stop', 'node1', 'node2'. This attribute must be provided 
+            if the events attribute is not None. The corresponding values to 
+            these keys must allow to extract the content from each individual 
+            event from the events attribute. So if events is a list of 
+            lists (e.g.  [[start, stop, node1, node2], ..]) event_keys must map
+            to the corresponding indices (so {'start':0, 'stop': 1, ...}). 
+            Equivalently, if events is a list of dict then event_keys must map
+            to the corresponding keys.
+        :param temporal_node: An instance of the TemporalGraph class from 
+            nw_construct package. If this attribute is provided, the events
+            are ignored.
+        :param params:... 
+        """
+        if temporal_graph is not None:
+            self.starts = temporal_graph.starts
+            self.stops = temporal_graph.stops
+            self.node1s = temporal_graph.node1s
+            self.node2s = temporal_graph.node2s
+            self.t_start = params.get('t_start', np.min(self.starts))
+            self.t_stop = params.get('t_stop', np.max(self.stops))
+            self.nodes_start = temporal_graph.nodes_start
+            self.nodes_end = temporal_graph.nodes_end
+            ContactStructure.__init__(
+                    self, from_object=temporal_graph, is_static=False,
+                    has_dynamic_nodes=temporal_graph.has_dynamic_nodes
+                    )
+        elif hosts is not None:
+            self.nodes_starts = [host.start for host in hosts]
+            self.nodes_stops = [host.stop for host in hosts]
+            # check if the hosts have contact events, if so the events should 
+            # be constructed from those.
+            # ToDo!
+            if hosts[0].contacts is not None:
+                # digest the contacts into the starts, stops, node1s, node2s
+                # and event_params
+                raise self.ImplementationMissingError(
+                """
+                    Creating the events for the individual hosts contact is 
+                    not implemented yet.
+                """
+                )
+            if events is not None:
+                # sort them first according to start times
+                events.sort(key=lambda x:x[event_keys['start']])
+                self.starts = [
+                        an_event.pop(event_keys['start']) for an_event in events
+                        ]
+                self.stops = [
+                        an_event.pop(event_keys['stop']) for an_event in events
+                        ]
+                self.node1s = [
+                        an_event.pop(event_keys['node1']) for an_event in events
+                        ]
+                self.node2s = [
+                        an_event.pop(event_keys['node2']) for an_event in events
+                        ]
+                # now put whatever remains of the evenst in event_params
+                self.event_params = events
 
     def get_events(self, node_id, start_time, delta_t):
         """
-        Returns a view of the start times and stop times as well as the involved nodes of all event for a given
-        node within a time range (start_time, start_time + delta_t)
+        Returns a view of the start times and stop times as well as the
+            involved nodes of all event for a given node within a time
+            range (start_time, start_time + delta_t)
         :param node_id:
         :param start_time:
         :param delta_t:
@@ -320,26 +394,48 @@ class ContactSequence(ContactStructure):
         distances, _ = self.get_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
         return [i for i, x in enumerate(distances) if x != -1]
 
-
-# ToDo: Make temporal part of this class. (low priority)
 class Host():
-    def __init__(self, an_id, neighbours, susceptible):
+    def __init__(self, an_id, neighbours=None, susceptible=1):
         """
                 This class defines a single host.
 
         Arguments:
             - name: int, unique for each host in a contact_structure
-            - neighbours:
+            - neighbours: 
             - susceptible:
         :param an_id: unique id for each host in a contact_structure
-        :param neighbours: A numpy array of either host _id's indicating all the neighbours of the host or tuples
-        :param susceptible: A float [0,1] or dict. If it's a dict, the key is the name of a strain and the corresponding
-                value [0,1] indicates whether the host is susceptible or not. Additionally the key 'Default' can be
-                given. It will associate to all missing strains the specified value.
-                If a float is given, the value will be taken for all strains. This is equivalent to just give a
-                    dict with a 'Default' value.
+        :param neighbours: A numpy array of either host _id's indicating all
+            the neighbours of the host or tuples
+        :param susceptible: A float [0,1] or dict. If it's a dict, the key is
+            the name of a strain and the corresponding value [0,1] indicates
+            whether the host is susceptible or not. Additionally the key
+            'Default' can be given. It will associate to all missing strains
+            the specified value.
+            If a float is given, the value will be taken for all strains.
+            This is equivalent to just give a dict with a 'Default' value.
         :return:
         """
         self._id = an_id
         self.susceptible = susceptible
         self.neighbours = neighbours
+
+class dynHost(Host):
+    def __init__(
+            self, an_id, contacts=None, susceptible=1,
+            start=None, stop=None, params=None, get_from_params=None 
+            ):
+        if contacts:
+            # contacts is a list of events (start, duration, partner, where=None)
+            neighbours = np.array(set(map(lambda x: x[2], contacts)))
+            self.contacts = contacts
+            self.contacts.sort(key=lambda x:x[0])
+        else:
+            neighbours=None
+        super.__init__(self, an_id, neighbours, susceptible)
+        self.start = start
+        self.stop = stop
+        if params is not None:
+            if get_from_params is not None:
+                for attr in get_from_params:
+                    setattr(self, attr, params.pop(attr, None))
+            self.params = params

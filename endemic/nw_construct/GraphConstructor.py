@@ -19,6 +19,99 @@ class InvalidArgumentError(Exception):
     def __init__(self, msg):
         self.msg = msg
 
+class Node():
+    nodes = list()
+    class NoNodeError(Exception):
+        pass
+    def __init__(
+            self, uid=None, contacts= None, neighbours=None, start=None,
+            stop=None, prop = None, get_from_prop=None
+            ):
+        """
+        This class defines a single node.
+
+        Arguments:
+            - uid: unique identifier of the node 
+            - contacts: a list of contacts the node has.
+            - neighbours: a list of neighbours of the node
+        :param uid: unique id for each host in a contact_structure
+        :param contacts: A list of either lists/tuples or dicts. Each element
+            describes a contact that must have a partner node (use an_id 
+            attribute) and can have a duration and/or start stop and further
+            info.
+        :param neighbours: A list of either host uid's indicating all
+            the neighbours of the node.
+        :param prop: Optional argument. If provided, must be a dict.
+        :param get_from_prop: List of strings specifying which keys from the 
+            dict provided in prop should be made attributes of the node.
+        :return:
+        """
+        if self not in self.__class__.nodes:
+            self.__class__.nodes.append(self)
+            self._id = len(self.__class__.nodes) - 1
+        else:
+            self_id = self.__class__.nodes.index(self)
+        if uid is not None:
+            self.uid = uid
+        else:
+            self.uid = _id
+        self.neighbours = neighbours
+        self.contacts = []
+        if contacts is not None:
+            self.add_contacts(contacts)
+        self.start=start
+        self.stop=stop
+        if prop is not None:
+            if get_from_prop is not None:
+                for g_prop in get_from_prop:
+                    setattr(self, g_prop, prop.pop(g_prop, None))
+
+    def __getstate__(self):
+        instance_dict = self.__dict__
+        return instance_dict
+
+    def __setstate__(self, input_dict):
+        self.__dict__ = input_dict
+        if self not in self.__class__.nodes:
+            self.__class__.nodes.append(self)
+            self._id = len(self.__class__.nodes) - 1
+        else:
+            self_id = self.__class__.nodes.index(self)
+
+    @classmethod
+    def _no_instances(cls):
+        if not len(cls.nodes):
+            raise cls.NoNodeError(
+                    'The set of Nodes is empty. Add a node first'
+                    )
+        else:
+            return 1
+
+    @classmethod
+    def get_node(cls, uid):
+        try:
+            cls._no_instances()
+        except cls.NoNodeError:
+            return None
+        for node in cls.nodes:
+            if uid == node.uid:
+                return node
+        return None
+
+    @staticmethod
+    def add_events(to_add, event):
+        for a_key, val in event.iteritems():
+            try:
+                to_add[a_key].append(val)
+            except KeyError:
+                to_add[a_key] = [val]
+
+    def add_contacts(self, contacts):
+        self.add_events(self.contacts, contacts)
+
+    #def add_manipulations(self, manipulations):
+    #    self.add_events(self.manipulations, manipulations)
+
 class _Graph():
     """
         This is the basic class for a graph, containing but
@@ -56,37 +149,101 @@ class TemporalGraph(_Graph):
         Source is the actual data we want to import. In params we can specify
             if we just want to look at part of the data (e.g. provide 't_start'
             and 't_stop').
-        :param source:
+        :param nodes: Is a list of instances of the Node class.
+            Note: you should pass Node.nodes here. If this argument is not
+            provided either the events or the source arguments need to be
+            provided.
+        :param node_import: A list of node attributes that will be converted to
+            an attribute of self (in form of a list).
+        :param events: a list of events, each element must contain a start, stop
+            node1 and node2. The elements can be lists itself or dicts. If 
+            events is not provided the host or temporal_graph attribute must
+            be provided.
+        :param event_keys: A dictionary mapping the following keys:
+            'start', 'stop', 'node1', 'node2'. This attribute must be provided 
+            if the events attribute is not None. The corresponding values to 
+            these keys must allow to extract the content from each individual 
+            event from the events attribute. So if events is a list of 
+            lists (e.g.  [[start, stop, node1, node2], ..]) event_keys must map
+            to the corresponding indices (so {'start':0, 'stop': 1, ...}). 
+            Equivalently, if events is a list of dict then event_keys must map
+            to the corresponding keys.
+        :param source: either the path to a text file (e.g. csv) or a python 
+            dict holding all the events.
         :param params:
         :return:
     """
-    def __init__(self, source, **params):
+    def __init__(
+            self, nodes=None, node_import=None, events=None, event_keys = None,
+            source=None, **params
+            ):
         #_Graph.__init__(self)
         self.is_static = False
         self.has_dynamic_nodes = False
         # make type specific imports
-        if isinstance(source, str):  # it is a file
-            self._load_from_file(source, **params)
-        elif isinstance(source, dict):
-            # if we don't need to pass on the params, better don't
-            self._load_from_dict(source)
-        else:  # source must be an EventQueue then
-            # copy events that were passed by arguments
-            self._copy_events(**params)
-        self.t_start = params.get('t_start', np.min(self.starts))
-        self.t_stop = params.get('t_stop', np.max(self.stops))
-        self.o_ids = list(np.union1d(self._node1s, self._node2s))
-        n = len(self.o_ids)
-        _Graph.__init__(self, n=n)
-
+        if nodes is not None:
+            self.nodes = nodes
+            self.o_ids = [node.uid for node in self.nodes]
+            self.n = len(self.o_ids)
+            self.nodes_start = np.array([node.start for node in self.nodes])
+            self.nodes_end = np.array([node.stop for node in self.nodes])
+            if node_import is not None:
+                for attr in node_import:
+                    setattr(
+                            self, attr,
+                            [getattr(node, attr, None) for node in self.nodes]
+                            )
+            # ToDo: deal with the nodes contacts
+            if events is not None:
+                events.sort(key=lambda x:x[event_keys['start']])
+                self._node1s = [
+                    an_event.pop(event_keys['node1']) for an_event in events
+                    ]
+                #self.node1s = [
+                #    Node.get_node(node)._id for node in self._node1s
+                #    ]
+                self._node2s = [
+                    an_event.pop(event_keys['node2']) for an_event in events
+                    ]
+                #self.node2s = [
+                #    Node.get_node(node)._id for node in self._node2s
+                #    ]
+                self.starts = [
+                    an_event.pop(event_keys['start']) for an_event in events
+                    ]
+                self.stops = [
+                    an_event.pop(event_keys['stop']) for an_event in events
+                    ]
+                self.event_params = events
+        elif events is not None:
+            # ToDo: Handle the import from events only case
+            pass
+        else:
+            if isinstance(source, str):  # it is a file
+                self._load_from_file(source, **params)
+            elif isinstance(source, dict):
+                # if we don't need to pass on the params, better don't
+                self._load_from_dict(source)
+            else:  # source must be an EventQueue then
+                # copy events that were passed by arguments
+                self._copy_events(**params)
+            # ToDo: self.event_params is not filled
+            self.event_params = []
+            self.o_ids = list(np.union1d(self._node1s, self._node2s))
+            n = len(self.o_ids)
         # now we need to remap the node ids
         mapper = {val: key for key, val in enumerate(self.o_ids)}
         get_element = lambda k: mapper.get(k)
         v_get_id = np.vectorize(get_element)
 
-        # self.node1/2s is the list of 'usable' node ids. self._node1/2s are the original node ids
+        # self.node1/2s is the list of 'usable' node ids.
+        # self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
+
+        self.t_start = params.get('t_start', np.min(self.starts))
+        self.t_stop = params.get('t_stop', np.max(self.stops))
+        _Graph.__init__(self, n=n)
 
         # If nodes_start and nodes_end are specified in params, overwrite it
         if 'nodes_start' in params:
@@ -97,8 +254,10 @@ class TemporalGraph(_Graph):
         # transform nodes_start and nodes_end into np.arrays if needed
         if not (self.nodes_start is None or self.nodes_end is None):
             if len(self.nodes_start) != n or len(self.nodes_end) != n:
-                InvalidArgumentError('The <nodes_start> and <nodes_end> arguments have to be of the same length as the '
-                                     'total number of unique nodes (n=%s)', str(self.n))
+                InvalidArgumentError(
+                        'The <nodes_start> and <nodes_end> arguments have to '\
+                                'be of the same length as the total number of '\
+                                'unique nodes (n=%s)', str(self.n))
             self._transform_nodes_start_end(v_get_id)
             self.has_dynamic_nodes = True
         else:
@@ -110,16 +269,22 @@ class TemporalGraph(_Graph):
 
     def _transform_nodes_start_end(self, vectorize_func):
         """
-        Transform self.nodes_start and self.nodes_end into numpy arrays in which the value at
-        position i is the value of individual i, defined by the vectorize function. If self.nodes_start and self.nodes_end are already numpy arrays, remap positions
+        Transform self.nodes_start and self.nodes_end into numpy arrays in
+        which the value at position i is the value of individual i, defined by
+        the vectorize function. If self.nodes_start and self.nodes_end are
+        already numpy arrays, remap positions
 
         Arguments:
 
-        :param vectorize_func: Maps an ID of general type (e.g. String) to an integer in the space {0...n}, where n
-         is the number of nodes
+        :param vectorize_func: Maps an ID of general type (e.g. String) to an
+            integer in the space {0...n}, where n is the number of nodes
         :return:
         """
-        if isinstance(self.nodes_start, dict) and isinstance(self.nodes_end, dict):
+        if isinstance(
+                self.nodes_start, dict
+                ) and isinstance(
+                        self.nodes_end, dict
+                        ):
             nodes_start = copy(self.nodes_start)
             nodes_end = copy(self.nodes_end)
             self.nodes_start = np.zeros(len(nodes_start))
@@ -129,18 +294,24 @@ class TemporalGraph(_Graph):
             for node_name, val in nodes_end.items():
                 self.nodes_end[vectorize_func(node_name)] = val
 
-        elif isinstance(self.nodes_start, np.ndarray) and isinstance(self.nodes_end, np.ndarray):
-            # in this case self.o_ids has to be a list of integers with all integer values up to n that map to
-            # positions in nodes_start and nodes_end. Simply re-map positions...
+        elif isinstance(
+                self.nodes_start, np.ndarray
+                ) and isinstance(
+                        self.nodes_end, np.ndarray
+                        ):
+            # in this case self.o_ids has to be a list of integers with all
+            # integer values up to n that map to positions in nodes_start and
+            # nodes_end. Simply re-map positions...
             self.nodes_start = self.nodes_start[vectorize_func(xrange(self.n))]
             self.nodes_end = self.nodes_end[vectorize_func(xrange(self.n))]
         else:
-            InvalidArgumentError('The arguments <nodes_start> and <nodes_end> have to be of type dict or numpy.array')
+            InvalidArgumentError(
+                    'The arguments <nodes_start> and <nodes_end> have to be '\
+                            'of type dict or numpy.array'
+                            )
 
 
     def _load_from_file(self, source, **params):
-        # use memmap for large files?
-        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.memmap.html
         """
 
         Parameters:
@@ -332,16 +503,21 @@ class Graph(_Graph):
     def __init__(self, n=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
-            - network_type: specify the type of network that should be constructed (THIS IS MANDATORY).
-                It can either be the name of a distribution or of a certain network type.
+            - network_type: specify the type of network that should be
+                constructed (THIS IS MANDATORY).
+                It can either be the name of a distribution or of a certain
+                    network type.
 
-            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential', 'geometric', 'gamma', 'power', 'weibull']
+            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential',
+            'geometric', 'gamma', 'power', 'weibull']
             For specific parameters of the distributions, see:
                 http://docs.scipy.org/doc/numpy/reference/routines.random.html
 
-            - method: The probabilistic framework after which the network will be constructed.
-            - distribution specific arguments. Check out the description of the specific numpy
-                function. Or just give the argument network_type and look at what the error tells you.
+            - method: The probabilistic framework after which the network will
+                be constructed.
+            - distribution specific arguments. Check out the description of the
+                specific numpy function. Or just give the argument network_type
+                and look at what the error tells you.
                 
            see self._create_graph for more information
         """
@@ -360,7 +536,10 @@ class Graph(_Graph):
             if method in ['proba', 'stub']:
                 self.method = method
             else:
-                raise ValueError(method + ' is not a permitted method! Chose either "proba" or "stub"')
+                raise ValueError(
+                        method + ' is not a permitted method! Chose either '\
+                                '"proba" or "stub"'
+                                )
             try:
                 self.nw_name = distribution.pop('network_type')
                 empty_graph = False
@@ -373,7 +552,8 @@ class Graph(_Graph):
                 if self.nw_name not in self.permitted_types:
                     raise ValueError(
                         "The specified network type \"%s\" is not permitted. \
-                        Please chose from " % self.nw_name + '[' + ', '.join(self.permitted_types) + ']')
+                        Please chose from " % self.nw_name + '[' + \
+                        ', '.join(self.permitted_types) + ']')
                 self.distribution = distribution
                 self._create_graph(**self.distribution)
 
@@ -388,14 +568,14 @@ class Graph(_Graph):
                 or with a probabilistic method (by the use of self._make_graph.
             The stub-algorithm keeps the exact degree that was drawn from
                 the distribution, the probabilistic method on the other side
-                produces a realization where the drawn degree is only the expected
-                value. 
+                produces a realization where the drawn degree is only the
+                expected value. 
             Arguments are:
                 method: either 'stub' or 'proba', default = 'stub'
                     - determines which algorithm is used
-                    Note that the stub algorithm will have an increasingly hard time
-                        for denser networks and will eventually fail if the average 
-                        degree is almost n-1.
+                    Note that the stub algorithm will have an increasingly hard
+                        time for denser networks and will eventually fail if
+                        the average degree is almost n-1.
             **distribution: several arguments.
                 network_type: gives the name of the wanted distribution
         """
@@ -403,7 +583,8 @@ class Graph(_Graph):
             try:
                 self.l_partition_network(**distribution)
             except TypeError, msg:
-                print 'OH, something went wrong! \n Here, have a description of the distribution:'
+                print 'OH, something went wrong! \n Here, have a description '\
+                        'of the distribution:'
                 print self.l_partition_network.__doc__
                 raise TypeError(msg)
             return 0
@@ -427,7 +608,8 @@ class Graph(_Graph):
                 for _ in xrange(self.n):
                     degrees.append(Distribution[self.nw_name](**distribution))
             except TypeError, msg:
-                print 'OH, something went wrong! \n Here, have a description of the distribution:'
+                print 'OH, something went wrong! \n Here, have a description '\
+                        'of the distribution:'
                 print Distribution[self.nw_name].__doc__
                 raise TypeError(msg)
         self._make_graph(degrees)
@@ -440,15 +622,19 @@ class Graph(_Graph):
     def _make_graph(self, degrees, stub_tries=100):
         """
             This function constructs the actual network.
-            Depending on the construction method that has been chosen the network is either generated by a
-                probabilistic method (if self.method = 'proba') or by a edge wiring method (self.method = 'stubs').
+            Depending on the construction method that has been chosen the
+            network is either generated by a probabilistic method (if
+            self.method = 'proba') or by a edge wiring method
+            (self.method = 'stubs').
         """
         if self.method == 'proba':
             two_k = float(sum(degrees))
             self.nn = [[] for _ in xrange(self.n)]
             for i in xrange(len(degrees) - 1):
                 for j in xrange(i + 1, len(degrees)):
-                    if min(degrees[i] * degrees[j] / two_k, 1) > random.sample():
+                    if min(
+                            degrees[i] * degrees[j] / two_k, 1
+                            ) > random.sample():
                         self.nn[i].append(j)
                         self.nn[j].append(i)
             self._convert_to_array()
@@ -456,12 +642,17 @@ class Graph(_Graph):
             return 0
         else:
             if sum(degrees) > self.n * (self.n - 1):
-                print 'WARNING: according to the chose degree sequence the network should be more than fully connected'
-                print '\t the degree sequence is corrected such that each node has at most n-1 neighbours.'
-            self.degrees = map(lambda x: min(self.n - 1, int(round(x))), degrees)
+                print 'WARNING: according to the chose degree sequence the '\
+                        'network should be more than fully connected'
+                print '\t the degree sequence is corrected such that each '\
+                        'node has at most n-1 neighbours.'
+            self.degrees = map(
+                    lambda x: min(self.n - 1, int(round(x))), degrees
+                    )
             # check if the sum of the degrees is odd
             s_deg = sum(self.degrees)
-            if s_deg/2 != s_deg/2.:  # if it is odd, correct (+1) as otherwise the stub method cannot work
+            # if odd, correct (+1) as otherwise the stub method cannot work
+            if s_deg/2 != s_deg/2.:  
                 self.degrees[0] += 1
             stubs = []
             self.nn = [[] for _ in xrange(self.n)]
@@ -495,8 +686,10 @@ class Graph(_Graph):
                     else:
                         stubs.append(n_2)
                         stubs.append(n_1)
-                    length = len(stubs)  # need only to be recomputed if stubs.append is not executed
-                    if length_queue.get_nowait() - length == 0:  # if after self._stub_attempts the stubs has the same
+                    # need only to be recomputed if stubs.append is not executed 
+                    length = len(stubs)  
+                    # if after self._stub_attempts the stubs has the same
+                    if length_queue.get_nowait() - length == 0:  
                         # length, give up
                         break
                     length_queue.put_nowait(length)
@@ -509,27 +702,37 @@ class Graph(_Graph):
                 while len(stubs) and counter:
                     n_1 = self._get_rand_element(stubs)  # take a stubs
                     # get the list of potential neighbours for this stub
-                    pot_neigh_n_1 = filter(lambda x: x not in self.nn[n_1], range(self.n))
+                    pot_neigh_n_1 = filter(
+                            lambda x: x not in self.nn[n_1], range(self.n)
+                            )
                     try:
                         rand_node_1 = self._get_rand_element(pot_neigh_n_1)
                         # get a neighbour of rand_node_1
-                        rand_node_2 = self.nn[rand_node_1][random.randint(0, len(self.nn[rand_node_1]))]
+                        rand_node_2 = self.nn[
+                                rand_node_1
+                                ][random.randint(0, len(self.nn[rand_node_1]))]
                     except ValueError:
                         stubs.append(n_1)
                         continue
-                    self.nn[n_1].append(rand_node_1)  # connect the stub to the random node
+                    self.nn[n_1].append(rand_node_1)  
+                    # connect the stub to the random node
                     self.nn[rand_node_1].append(n_1)  # "
                     self.nn[rand_node_1].remove(rand_node_2)  #
                     self.nn[rand_node_2].remove(rand_node_1)
-                    # rand_node_2 has a free stub now try to match it with another stub
-                    candidates = filter(lambda x: x not in self.nn[rand_node_2], stubs)
+                    # rand_node_2 has a free stub now try to match it with
+                    # another stub
+                    candidates = filter(
+                            lambda x: x not in self.nn[rand_node_2], stubs
+                            )
                     if candidates:
                         new_mate = self._get_rand_element(candidates)
-                        stubs.pop(stubs.index(new_mate))  # remove the new_mate from the stubs
+                        # remove the new_mate from the stubs
+                        stubs.pop(stubs.index(new_mate))  
                         self.nn[rand_node_2].append(new_mate)
                         self.nn[new_mate].append(rand_node_2)
                     else:
-                        # nothing to match, put the stub of rand_node_2 into the list
+                        # nothing to match, put the stub of rand_node_2 into
+                        # the list
                         stubs.append(rand_node_2)
                     print len(stubs), counter
                     counter -= 1
