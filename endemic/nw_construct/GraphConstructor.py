@@ -20,7 +20,7 @@ class InvalidArgumentError(Exception):
         self.msg = msg
 
 class Node():
-    nodes = list()
+    _all = list()
     class NoNodeError(Exception):
         pass
     def __init__(
@@ -48,9 +48,9 @@ class Node():
         """
         if self not in self.__class__.nodes:
             self.__class__.nodes.append(self)
-            self._id = len(self.__class__.nodes) - 1
+            self._id = len(self.__class__._all) - 1
         else:
-            self_id = self.__class__.nodes.index(self)
+            self_id = self.__class__._all.index(self)
         if uid is not None:
             self.uid = uid
         else:
@@ -72,15 +72,15 @@ class Node():
 
     def __setstate__(self, input_dict):
         self.__dict__ = input_dict
-        if self not in self.__class__.nodes:
-            self.__class__.nodes.append(self)
-            self._id = len(self.__class__.nodes) - 1
+        if self not in self.__class__._all:
+            self.__class__._all.append(self)
+            self._id = len(self.__class__._all) - 1
         else:
-            self_id = self.__class__.nodes.index(self)
+            self_id = self.__class__._all.index(self)
 
     @classmethod
     def _no_instances(cls):
-        if not len(cls.nodes):
+        if not len(cls._all):
             raise cls.NoNodeError(
                     'The set of Nodes is empty. Add a node first'
                     )
@@ -93,7 +93,7 @@ class Node():
             cls._no_instances()
         except cls.NoNodeError:
             return None
-        for node in cls.nodes:
+        for node in cls._all:
             if uid == node.uid:
                 return node
         return None
