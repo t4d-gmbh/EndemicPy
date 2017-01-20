@@ -21,11 +21,12 @@ class InvalidArgumentError(Exception):
         self.msg = msg
 
 class _Graph():
-    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
+    def __init__(self, nodes=None, N=None, edges=None, degrees=None):
         """
             This is the basic class for a graph, containing but
         :param nodes:
-        :param edges: Is either a set of tuples containing node ids or node ids and start and stop times
+        :param edges: Is either a set of tuples containing node ids or node ids
+            and start and stop times
         :return:
         """
         self._nodes = nodes if nodes is not None else np.array([])
@@ -44,8 +45,8 @@ class _Graph():
                 self.degrees.append(len(list(set(nn[i]))))
             del nn
         self.n = None
-        if n is not None:
-            self.n = n
+        if N is not None:
+            self.n = N
         if np.size(self._nodes):
             self.n = len(self._nodes)
         self.info = {}  # dict containing some info
@@ -92,12 +93,17 @@ class TemporalGraph(_Graph):
                                 start time/frame tag.
                             stop_tag: Name of the column containing the
                                 stop time/frame tag.
-                            node1_tag: Name of the column with the first participant
-                            node2_tag: Name of the column with the second participant
-                            delimiter: The string delimiting the columns (default: 'TAB'). You can use the actual
-                                string e.g. '\\t' for 'TAB" or choose from: ('TAB', 'space')
-                            string_values: A list of all the columns containing strings as values. All the
-                                other columns will be converted to floats.
+                            node1_tag: Name of the column with the first
+                                participant
+                            node2_tag: Name of the column with the second
+                                participant
+                            delimiter: The string delimiting the columns
+                                (default: 'TAB'). You can use the actual string
+                                e.g. '\\t' for 'TAB" or choose from:
+                                ('TAB', 'space')
+                            string_values: A list of all the columns containing
+                                strings as values. All the other columns will
+                                    be converted to floats.
                         Optional:
 
                             directed: True/False whether the interactions
@@ -106,8 +112,9 @@ class TemporalGraph(_Graph):
                     If source is a filename
                         Optional:
                             permitted_values: Default = {}
-                                If 'start_tag' is given, only interactions with a start_tag bigger than this value
-                                    will be considered.
+                                If 'start_tag' is given, only interactions with
+                                    a start_tag bigger than this value will be
+                                    considered.
 
                     If source is an EventQueue:
                         Optional:
@@ -126,7 +133,10 @@ class TemporalGraph(_Graph):
                 pass
         except IOError:
             InvalidArgumentError('The file specified does not exist')
-        for arg in ['start_tag', 'stop_tag', 'node1_tag', 'node2_tag', 'string_values', 'delimiter']:
+        for arg in [
+                'start_tag', 'stop_tag', 'node1_tag', 'node2_tag',
+                'string_values', 'delimiter'
+                ]:
             try:
                 if arg == 'delimiter':
                     if params[arg] == 'TAB':
@@ -144,21 +154,31 @@ class TemporalGraph(_Graph):
                 else:
                     setattr(self, arg, params[arg])
             except KeyError:
-                raise InvalidArgumentError('The mandatory argument <%s> was not given.' % arg)
+                raise InvalidArgumentError(
+                        'The mandatory argument <%s> was not given.' % arg
+                        )
         # each event will have this structure
-        self._event_structure = [self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag]
+        self._event_structure = [
+                self.start_tag, self.stop_tag, self.node1_tag, self.node2_tag
+                ]
         with open(source, 'r') as f:
-            self._file_header = f.readline().rstrip().replace('#', '').split(self._file_delimiter)
+            self._file_header = f.readline().rstrip().replace(
+                    '#', ''
+                    ).split(self._file_delimiter)
             data = np.genfromtxt(
                 f,
                 delimiter=self._file_delimiter,
-                unpack=False,  # not sure about that, if for a, b, c = ... syntax
+                unpack=False, 
                 autostrip=True,
                 comments='#',
                 names=', '.join(self._file_header),
                 # try to determine type independently
                 dtype=None,
-                usecols=tuple(filter(lambda x: x in self._event_structure, self._file_header))
+                usecols=tuple(
+                    filter(
+                        lambda x: x in self._event_structure, self._file_header
+                        )
+                    )
             )
             self.starts = data[self.start_tag]
             self.stops = data[self.stop_tag]
@@ -170,16 +190,21 @@ class Graph(_Graph):
     def __init__(self, n=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
-            - network_type: specify the type of network that should be constructed (THIS IS MANDATORY).
-                It can either be the name of a distribution or of a certain network type.
+            - network_type: specify the type of network that should be
+                constructed (THIS IS MANDATORY).
+                It can either be the name of a distribution or of a certain
+                    network type.
 
-            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential', 'geometric', 'gamma', 'power', 'weibull']
+            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential',
+            'geometric', 'gamma', 'power', 'weibull']
             For specific parameters of the distributions, see:
                 http://docs.scipy.org/doc/numpy/reference/routines.random.html
 
-            - method: The probabilistic framework after which the network will be constructed.
-            - distribution specific arguments. Check out the description of the specific numpy
-                function. Or just give the argument network_type and look at what the error tells you.
+            - method: The probabilistic framework after which the network will
+                be constructed.
+            - distribution specific arguments. Check out the description of the
+                specific numpy function. Or just give the argument network_type
+                and look at what the error tells you.
                 
            see self._create_graph for more information
         """
@@ -197,7 +222,10 @@ class Graph(_Graph):
             if method in ['proba', 'stub']:
                 self.method = method
             else:
-                raise ValueError(method + ' is not a permitted method! Chose either "proba" or "stub"')
+                raise ValueError(
+                        method + ' is not a permitted method! Chose either \
+                                "proba" or "stub"'
+                                )
             try:
                 self.nw_name = distribution.pop('network_type')
                 empty_graph = False
@@ -210,7 +238,9 @@ class Graph(_Graph):
                 if self.nw_name not in self.permitted_types:
                     raise ValueError(
                         "The specified network type \"%s\" is not permitted. \
-                        Please chose from " % self.nw_name + '[' + ', '.join(self.permitted_types) + ']')
+                        Please chose from " % self.nw_name + '[' + ', '.join(
+                            self.permitted_types) + ']'
+                        )
                 self.distribution = distribution
                 self._create_graph(**self.distribution)
 
@@ -222,14 +252,14 @@ class Graph(_Graph):
                 or with a probabilistic method (by the use of self._make_graph.
             The stub-algorithm keeps the exact degree that was drawn from
                 the distribution, the probabilistic method on the other side
-                produces a realization where the drawn degree is only the expected
-                value. 
+                produces a realization where the drawn degree is only the
+                expected value. 
             Arguments are:
                 method: either 'stub' or 'proba', default = 'stub'
                     - determines which algorithm is used
-                    Note that the stub algorithm will have an increasingly hard time
-                        for denser networks and will eventually fail if the average 
-                        degree is almost n-1.
+                    Note that the stub algorithm will have an increasingly hard
+                        time for denser networks and will eventually fail if
+                        the average degree is almost n-1.
             **distribution: several arguments.
                 network_type: gives the name of the wanted distribution
         """
@@ -237,7 +267,8 @@ class Graph(_Graph):
             try:
                 self.l_partition_network(**distribution)
             except TypeError, msg:
-                print 'OH, something went wrong! \n Here, have a description of the distribution:'
+                print 'OH, something went wrong! \n Here, have a description \
+                        of the distribution:'
                 print self.l_partition_network.__doc__
                 raise TypeError(msg)
             return 0
@@ -270,7 +301,8 @@ class Graph(_Graph):
         #        for _ in xrange(self.n):
         #            degrees.append(Distribution[self.nw_name](**distribution))
         #    except TypeError, msg:
-        #        print 'OH, something went wrong! \n Here, have a description of the distribution:'
+        #        print 'OH, something went wrong! \n Here, have a description \
+        #            of the distribution:'
         #        print Distribution[self.nw_name].__doc__
         #        raise TypeError(msg)
         self._make_graph(degrees)
@@ -293,7 +325,9 @@ class Graph(_Graph):
             self.nn = [[] for _ in xrange(self.n)]
             for i in xrange(len(degrees) - 1):
                 for j in xrange(i + 1, len(degrees)):
-                    if min(degrees[i] * degrees[j] / two_k, 1) > random.sample():
+                    if min(
+                            degrees[i] * degrees[j] / two_k, 1
+                            ) > random.sample():
                         self.nn[i].append(j)
                         self.nn[j].append(i)
             self._convert_to_array()
@@ -301,12 +335,17 @@ class Graph(_Graph):
             return 0
         else:
             if sum(degrees) > self.n * (self.n - 1):
-                print 'WARNING: according to the chose degree sequence the network should be more than fully connected'
-                print '\t the degree sequence is corrected such that each node has at most n-1 neighbours.'
-            self.degrees = map(lambda x: min(self.n - 1, int(round(x))), degrees)
+                print 'WARNING: according to the chose degree sequence the \
+                        network should be more than fully connected'
+                print '\t the degree sequence is corrected such that each node \
+                        has at most n-1 neighbours.'
+            self.degrees = map(
+                    lambda x: min(self.n - 1, int(round(x))), degrees
+                    )
             # check if the sum of the degrees is odd
             s_deg = sum(self.degrees)
-            if s_deg/2 != s_deg/2.:  # if it is odd, correct (+1) as otherwise the stub method cannot work
+            # if it is odd, correct (+1) otherwise the stub method cannot work
+            if s_deg/2 != s_deg/2.:
                 self.degrees[0] += 1
             stubs = []
             self.nn = [[] for _ in xrange(self.n)]
@@ -340,8 +379,10 @@ class Graph(_Graph):
                     else:
                         stubs.append(n_2)
                         stubs.append(n_1)
-                    length = len(stubs)  # need only to be recomputed if stubs.append is not executed
-                    if length_queue.get_nowait() - length == 0:  # if after self._stub_attempts the stubs has the same
+                    # need only to be recomputed if stubs.append is not executed
+                    length = len(stubs)  
+                     # if after self._stub_attempts the stubs has the same
+                    if length_queue.get_nowait() - length == 0:
                         # length, give up
                         break
                     length_queue.put_nowait(length)
@@ -354,27 +395,37 @@ class Graph(_Graph):
                 while len(stubs) and counter:
                     n_1 = self._get_rand_element(stubs)  # take a stubs
                     # get the list of potential neighbours for this stub
-                    pot_neigh_n_1 = filter(lambda x: x not in self.nn[n_1], range(self.n))
+                    pot_neigh_n_1 = filter(
+                            lambda x: x not in self.nn[n_1], range(self.n)
+                            )
                     try:
                         rand_node_1 = self._get_rand_element(pot_neigh_n_1)
                         # get a neighbour of rand_node_1
-                        rand_node_2 = self.nn[rand_node_1][random.randint(0, len(self.nn[rand_node_1]))]
+                        rand_node_2 = self.nn[rand_node_1][random.randint(
+                            0, len(self.nn[rand_node_1])
+                            )]
                     except ValueError:
                         stubs.append(n_1)
                         continue
-                    self.nn[n_1].append(rand_node_1)  # connect the stub to the random node
+                    # connect the stub to the random node
+                    self.nn[n_1].append(rand_node_1)  
                     self.nn[rand_node_1].append(n_1)  # "
                     self.nn[rand_node_1].remove(rand_node_2)  #
                     self.nn[rand_node_2].remove(rand_node_1)
-                    # rand_node_2 has a free stub now try to match it with another stub
-                    candidates = filter(lambda x: x not in self.nn[rand_node_2], stubs)
+                    # rand_node_2 has a free stub now try to match it with
+                    # another stub
+                    candidates = filter(
+                            lambda x: x not in self.nn[rand_node_2], stubs
+                            )
                     if candidates:
                         new_mate = self._get_rand_element(candidates)
-                        stubs.pop(stubs.index(new_mate))  # remove the new_mate from the stubs
+                        # remove the new_mate from the stubs
+                        stubs.pop(stubs.index(new_mate))  
                         self.nn[rand_node_2].append(new_mate)
                         self.nn[new_mate].append(rand_node_2)
                     else:
-                        # nothing to match, put the stub of rand_node_2 into the list
+                        # nothing to match, put the stub of rand_node_2 into
+                        # the list
                         stubs.append(rand_node_2)
                     print len(stubs), counter
                     counter -= 1
@@ -395,7 +446,8 @@ class Graph(_Graph):
     def info(self):
         """
             Returns the set of parameters used to create the network.
-        :return: Dictionary with the network type and the set of parameters used to generate the network
+        :return: Dictionary with the network type and the set of parameters
+            used to generate the network
         """
         return {
             'n': self.n,
@@ -426,7 +478,8 @@ class Graph(_Graph):
                 Note: if n is not a multiple of l,
                     some partitions will be smaller/bigger
                     than others.
-        :param kwargs: Set of possible arguments to define an l-partition network:
+        :param kwargs: Set of possible arguments to define an l-partition
+            network:
                 Possible arguments are:
                     - avg_degree: give the average degree
                 - density_ratio: the edge density ratio between
@@ -441,8 +494,16 @@ class Graph(_Graph):
             p_in = kwargs['p_in']
             p_out = kwargs['p_out']
         elif 'avg_degree' in kwargs and 'density_ratio' in kwargs:
-            p_in = kwargs['avg_degree'] / float((self.n / float(l) - 1) * (1 + 1 / float(kwargs['density_ratio'])))
-            p_out = kwargs['avg_degree'] / float((l - 1) * self.n / float(l) * (1 + kwargs['density_ratio']))
+            p_in = kwargs['avg_degree'] / float(
+                    (
+                        self.n / float(l) - 1
+                        ) * (
+                            1 + 1 / float(kwargs['density_ratio'])
+                            )
+                    )
+            p_out = kwargs['avg_degree'] / float(
+                    (l - 1) * self.n / float(l) * (1 + kwargs['density_ratio'])
+                    )
             if max(p_in, p_out) > 1:
                 raise ValueError(
                     """The desire ratio along with the given
@@ -451,7 +512,9 @@ class Graph(_Graph):
                     be more than fully connected."""
                 )
         else:
-            raise TypeError('Invalid arguments for the l_partition_network function')
+            raise TypeError(
+                    'Invalid arguments for the l_partition_network function'
+                    )
         nodes = xrange(self.n)
         partition_size = int(self.n // float(l))
         part_sizes = [partition_size for i in xrange(l)]
@@ -510,7 +573,8 @@ class Graph(_Graph):
     def new_realisation(self, **distribution):
         """
             Creates a new realisation of the chosen graph type.
-            If no arguments are specified previously defined parameters are used.
+            If no arguments are specified previously defined parameters are
+                used.
         """
         if distribution:
             for key in distribution:
@@ -526,7 +590,9 @@ class Graph(_Graph):
         for node in xrange(self.n):
             for nn in self.nn[node]:
                 edge = ' '.join([str(node), str(nn)]) + '\n'
-                if edge not in edgelist and ' '.join([str(nn), str(node)]) + '\n' not in edgelist:
+                if edge not in edgelist and ' '.join(
+                        [str(nn), str(node)]
+                        ) + '\n' not in edgelist:
                     edgelist.append(edge)
         return edgelist
 
@@ -541,11 +607,15 @@ class Graph(_Graph):
             - fileformat: Default is None. If no format is set, the format is 
                 inferred from the filename.
                 Permitted formats are:
-                    *.txt/*.edges: Edgelist. Each column is a pair of integers separated by whitespace
-                    *.ncol: Large Graph Layout Format. Each column is a pair of node names and 
-                        an optional weight(pos/neg integer), each separated by whitespace
-                    *.lgl: Large Graph Layout (alternative format). Adjacency style type of list (so a list of lists)
-                        indicating an source node with # followed by a list of target nodes and optional weights.
+                    *.txt/*.edges: Edgelist. Each column is a pair of integers
+                        separated by whitespace
+                    *.ncol: Large Graph Layout Format. Each column is a pair of
+                        node names and an optional weight(pos/neg integer),
+                        each separated by whitespace
+                    *.lgl: Large Graph Layout (alternative format). Adjacency
+                        style type of list (so a list of lists) indicating an
+                        source node with # followed by a list of target nodes
+                        and optional weights.
                         Eg.
                         #node1
                         node2 -1
@@ -557,7 +627,10 @@ class Graph(_Graph):
         if '.' in filename:
             [filename, fileformat] = filename.split('.')
         if fileformat not in ok_formats:
-            raise IOError('The chosen format <%s> is not permitted. See docstring for info.' % fileformat)
+            raise IOError(
+                    'The chosen format <%s> is not permitted. See docstring \
+                            for info.' % fileformat
+                            )
         with open(filename + '.' + fileformat, 'w') as the_file:
             if fileformat == 'lgl':
                 for node in xrange(self.n):
@@ -581,14 +654,17 @@ class Graph(_Graph):
         ok_formats = ['txt', 'ncol', 'lgl', 'edges']
         extension = filename.split('.')[-1]
         if extension not in ok_formats:
-            raise IOError('The file is of an unsupported format. Please provide a file with one of the following \
-            extensions:\n %s' % ', '.join(ok_formats))
+            raise IOError('The file is of an unsupported format. Please \
+                    provide a file with one of the following extensions:\n \
+                    %s' % ', '.join(ok_formats))
         with open(filename, 'r') as the_file:
             lines = the_file.readlines()
             if extension in ['txt', 'edges', 'ncol']:
                 edge_list = []
                 for line in lines:
-                    edge_list.append(tuple(map(lambda x: int(x), line.split(' ')[:2])))
+                    edge_list.append(
+                            tuple(map(lambda x: int(x), line.split(' ')[:2]))
+                            )
                     #only add the first two, other columns are weight etc.
                     #NOTE: The weights are not handled yet.
                 self._get_nn(edge_list=edge_list)
@@ -604,8 +680,11 @@ class Graph(_Graph):
                         try:
                             self.nn[key].append(int(elements[0]))
                         except NameError:
-                            raise NameError('The content needs to start with a #nodeID to specify to whom the following\
-                            nearest neighbours belong')
+                            raise NameError(
+                            'The content needs to start with a #nodeID to \
+                                    specify to whom the following nearest \
+                                    neighbours belong'
+                                    )
                         #issue: consider possible edge weights
                         #issue: catch exceptions
                 self._convert_to_array()
