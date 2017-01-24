@@ -313,16 +313,43 @@ class Scenario():
             of the infected node as we are in the static case)
 
         """
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
+        nn = []
+        inf_times = []
+        t_inf = 0
+        for n_neigh in self.contact_structure.nn[node_id]:
+            t_inf = self.pathogen.trans_dists[token_id].get_val()
+            while t_inf <= recover_time:
+                nn.append(n_neigh)
+                inf_times.append(t_inf)
+                t_inf += self.pathogen.trans_dists[token_id].get_val()
+        # the last 2 returned arguments are the start and stop condition for
+        # the neighbours, which simply boil down to self.t and the recover_time
+        # in the static case
+        return array(nn), recover_time, array(inf_times), 0., recover_time
+
+    def _get_neighbours_static_single(self, node_id, token_id):
+        """
+        This method can be used in any of the (further below defined)
+            event_handler_... methods if we are dealing with a static network
+        Note: This function only draws a single infection time per nearest 
+            neighbour and thus does not correspond to a truly memory less
+            process.
+        :param node_id: the index (id) of the node that is being infected.
+        :type node_id: int
+        :param token_id: the identifier for the token the node gets. 
+
+        :return: tuple with a list of nearest neighbours, the recover time,
+            the infection times for each neighbour, the starting time of the 
+            interactions (here this is 0 as we have a static network) and the 
+            stop times of each interaction (here this is just the recover time
+            of the infected node as we are in the static case)
+
+        """
         nn = copy(self.contact_structure.nn[node_id])
         recover_time = self.pathogen.rec_dists[token_id].get_val()
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
                 else array([])
-        
-        # nn = nn[inf_times < recover_time]
-        # inf_times = inf_times[inf_times < recover_time]
-        # the last 2 returned arguments are the start and stop condition for
-        # the neighbours, which simply boil down to
-        # self.t and the recover_time in the static case
         return nn, recover_time, inf_times, 0., recover_time
 
     def _get_neighbours_dynamic(self, node_id, token_id):
@@ -674,7 +701,10 @@ class Scenario():
         self.t = 0
         for name in strain:
             if name not in self.pathogen.ids.keys():
-                raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
+                raise self.WrongPathogenError(
+                        "There is no pathogen strain with the name \
+                                <%s>." % name
+                                )
             if type(strain[name]) is not str:
                 for node_id in strain[name]:
                     self.current_view[node_id] = self.pathogen.ids[name]
@@ -720,21 +750,32 @@ class Scenario():
             # set the node status back to susceptible
             self.current_view[node_id] = -1
             self.current_infection_type[node_id] = -1
-            self.current_therapy[node_id] = -1  # set the treatment status back to not treated
+            # set the treatment status back to not treated
+            self.current_therapy[node_id] = -1  
             self._count_per_strains[old_strain_id] -= 1
-        else:  # the Event is an infection or selection
-            if inf_event and self.current_view[node_id] != -1:  # infection of infected host: do nothing
-                pass  # NOTE: if super-infections are possible, here they would take place
-            else:  # infection of susceptible host or mutation
-                if nrand.rand() < self.contact_structure.susceptible[node_id][token_id] or not inf_event:
-                    nn, recover_time, inf_times, start_times, stop_times = get_neighbours(node_id, token_id)
+        # the Event is an infection or selection
+        else:  
+            # infection of infected host: do nothing 
+            if inf_event and self.current_view[node_id] != -1:  
+                # NOTE: if super-infections are possible, here they take place 
+                pass  
+            # infection of susceptible host or mutation      
+            else:  
+                if nrand.rand() < self.contact_structure.susceptible[
+                        node_id
+                        ][token_id] or not inf_event:
+                    nn, recover_time, inf_times, start_times, stop_times = \
+                            get_neighbours(node_id, token_id)
+                    # ##
                     # This is the part devoted to selection and treatment
                     # ##
                     if self.selecting[token_id]:
-                        selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
+                        selected_strain_id, selection_times = \
+                                self.pathogen.get_selected(token_id)
                         if selection_times[selected_strain_id] < recover_time:
                             recover_time = selection_times[selected_strain_id]
-                            new_token, new_inf_event = selected_strain_id, False
+                            new_token = selected_strain_id
+                            new_inf_event = False
                         else:
                             new_token, new_inf_event = -1, True
                     else:
@@ -742,38 +783,81 @@ class Scenario():
 
                     if self.treating[token_id]:
                         therapy_ids = self.strain_therapy_id_map[token_id]
-                        # to do: gather the various times and chose at random one, not the
-                        # smallest as now.
+                        # to do: gather the various times and chose at random
+                        # one, not the smallest as now.
                         # print self.therapy_select_facts
-                        # issue: this does not work if we have more than one therapy.
+                        # issue: this does not work if we have more than one 
+                        # therapy.
                         for therapy_id in therapy_ids:
-                            if nrand.rand() < self.therapy_probas[therapy_id][node_id]:
-                                self.current_therapy[node_id] = therapy_id  # set the therapy
+                            if nrand.rand() < self.therapy_probas[
+                                    therapy_id
+                                    ][node_id]:
+                                # set the therapy
+                                self.current_therapy[node_id] = therapy_id  
                                 delay = self.therapy_delays[therapy_id][node_id]
-                                if recover_time > delay:  # will recover after treatment delay
+                                # will recover after treatment delay
+                                if recover_time > delay:  
                                     recover_time = delay + (
                                         recover_time - delay
-                                    ) * self.therapy_recover_facts[therapy_id][token_id] ** (-1)
+                                    ) * self.therapy_recover_facts[
+                                            therapy_id
+                                            ][token_id] ** (-1)
                                     if self.selecting[token_id]:
                                         selection_times = [
                                             delay +
                                             (selection_times[x] - delay) *
-                                            self.therapy_select_facts[therapy_id][x] ** (-1)
-                                            for x in xrange(len(selection_times))
+                                            self.therapy_select_facts[
+                                                therapy_id
+                                                ][x] ** (-1)
+                                            for x in xrange(
+                                                len(selection_times)
+                                                )
                                         ]  # x is the id of the potential mutant
-                                        selected_strain_id = selection_times.index(min(selection_times))
-                                        if recover_time > selection_times[selected_strain_id]:
-                                            recover_time = selection_times[selected_strain_id]
-                                            new_token, new_inf_event = selected_strain_id, False
+                                        selected_strain_id = \
+                                                selection_times.index(
+                                                        min(selection_times)
+                                                        )
+                                        if recover_time > selection_times[
+                                                selected_strain_id
+                                                ]:
+                                            recover_time = selection_times[
+                                                    selected_strain_id
+                                                    ]
+                                            new_token, new_inf_event = \
+                                                    selected_strain_id, False
                                 inf_times = where(
                                     start_times + inf_times <= delay,
                                     inf_times,
-                                    delay + (inf_times - delay) * self.therapy_trans_facts[therapy_id][token_id] ** (-1)
+                                    delay + (inf_times - delay) * \
+                                            self.therapy_trans_facts[
+                                                therapy_id
+                                                ][token_id] ** (-1)
                                 )
                         # ##
-                    nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
-                    self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
-                    self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
+                    # cutting the infection times is only needed because of the
+                    # treatment
+                    nn, inf_times = self._cut_times(
+                            recover_time,
+                            start_times,
+                            stop_times,
+                            inf_times,
+                            nn
+                            )
+                    self.queue.put_nowait(
+                            Event(
+                                self.t + recover_time,
+                                node_id,
+                                new_token,
+                                new_inf_event,
+                                )
+                            )
+                    self._create_neighbour_events(
+                            inf_event,
+                            nn,
+                            inf_times,
+                            node_id,
+                            token_id
+                            )
         return 0
 
     # no selection, no treatment (but might still need to handle selections)
