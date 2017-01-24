@@ -187,7 +187,7 @@ class TemporalGraph(_Graph):
 
 
 class Graph(_Graph):
-    def __init__(self, n=None, method='stub', **distribution):
+    def __init__(self, N=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
             - network_type: specify the type of network that should be
@@ -195,8 +195,8 @@ class Graph(_Graph):
                 It can either be the name of a distribution or of a certain
                     network type.
 
-            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential',
-            'geometric', 'gamma', 'power', 'weibull']
+            ['uniform', 'full', 'l_partition', 'poisson', 'normal', 'binomial',
+                'exponential', 'geometric', 'gamma', 'power', 'weibull']
             For specific parameters of the distributions, see:
                 http://docs.scipy.org/doc/numpy/reference/routines.random.html
 
@@ -212,13 +212,15 @@ class Graph(_Graph):
         self.is_static = True
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
-        self.permitted_types = allowed_dists + ["l_partition", 'full']
+        self.permitted_types = allowed_dists + [
+                "l_partition", 'full', 'uniform'
+                ]
         self.is_directed = False
         # to do: pass usefull info in here.
         self._info = {}
         #for now only undirected networks
-        if n is not None:
-            self.n = n
+        if N is not None:
+            self.n = N
             if method in ['proba', 'stub']:
                 self.method = method
             else:
@@ -276,25 +278,24 @@ class Graph(_Graph):
         elif self.nw_name == 'full':
             self.fully_connected(**distribution)
             return 0
-        scale = distribution.get('scale', None)
-        if scale == 0:
-            degrees = [distribution['shape'] for _ in xrange(self.n)]
-        #try:
-        #    degrees = []
-        #    for _ in xrange(self.n):
-        #        degrees.append(Distribution[self.nw_name](**distribution))
-        try:
-            if distribution['scale'] == 0:
-                degrees = [distribution['shape'] for _ in xrange(self.n)]
-            else:
+        elif self.nw_name == 'uniform':
+            try:
+                degrees = [distribution['degree'] for _ in xrange(self.n)]
+            except KeyError, msg:
+                print 'You need to provide the argument degree if you \
+                        want to create a network with uniform degree!'
+                raise KeyError(msg)
+        else:
+            print distribution
+            try:
                 degrees = []
                 for _ in xrange(self.n):
                     degrees.append(Distribution[self.nw_name](**distribution))
-        except TypeError, msg:
-            print 'OH, something went wrong!'
-            print 'Here, have a description of the distribution:'
-            print Distribution[self.nw_name].__doc__
-            raise TypeError(msg)
+            except TypeError, msg:
+                print 'OH, something went wrong!'
+                print 'Here, have a description of the distribution:'
+                print Distribution[self.nw_name].__doc__
+                raise TypeError(msg)
         #except KeyError:
         #    try:
         #        degrees = []
