@@ -50,6 +50,20 @@ class Distro(object):
         except Empty:
             self.fillup()
             return self.queue.get_nowait()
+
+    def get_times(limit):
+        """
+        Return an array of events happening before the limit.
+        
+        Parameters:
+        -----------
+            :param limit: upper limit for the event times sequence. Only events
+                happening before the limit will be returned.
+            :type limit: float, int
+        """
+        # draw form the dist until we reach the limit time.    
+        pass
+    
         
     #def v_get(self, an_array):
     #    #return map(self.get_val, xrange(an_array.size))
