@@ -242,7 +242,11 @@ class ContactSequence(ContactStructure):
         :param temporal_node: An instance of the TemporalGraph class from 
             nw_construct package. If this attribute is provided, the events
             are ignored.
-        :param params:... 
+        :param params: optional arguments can be passed here. Possible are:
+            :param node_props: a list of node properties you want to import.
+                If this argument is provided, the attribute node_props will 
+                be populated with the properties specified here.
+                node_props is a list of dictionaries, 1 for each node.
         """
         if temporal_graph is not None:
             self.starts = temporal_graph.starts
@@ -253,6 +257,13 @@ class ContactSequence(ContactStructure):
             self.t_stop = params.get('t_stop', np.max(self.stops))
             self.nodes_start = temporal_graph.nodes_start
             self.nodes_end = temporal_graph.nodes_end
+            node_props = params.get('node_props', None)
+            if node_props is not None:
+                self.node_props = [
+                        {
+                            prop: getattr(a_node,prop) for prop in node_props
+                            } for a_node in temporal_graph.nodes
+                        ]
             ContactStructure.__init__(
                     self, from_object=temporal_graph, is_static=False,
                     has_dynamic_nodes=temporal_graph.has_dynamic_nodes

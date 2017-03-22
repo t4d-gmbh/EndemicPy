@@ -20,7 +20,7 @@ class InvalidArgumentError(Exception):
         self.msg = msg
 
 class Node():
-    nodes = list()
+    all_ = list()
     class NoNodeError(Exception):
         pass
     def __init__(
@@ -46,11 +46,11 @@ class Node():
             dict provided in prop should be made attributes of the node.
         :return:
         """
-        if self not in self.__class__.nodes:
-            self.__class__.nodes.append(self)
-            self._id = len(self.__class__.nodes) - 1
+        if self not in self.__class__.all_:
+            self.__class__.all_.append(self)
+            self._id = len(self.__class__.all_) - 1
         else:
-            self_id = self.__class__.nodes.index(self)
+            self_id = self.__class__.all_.index(self)
         if uid is not None:
             self.uid = uid
         else:
@@ -72,15 +72,15 @@ class Node():
 
     def __setstate__(self, input_dict):
         self.__dict__ = input_dict
-        if self not in self.__class__.nodes:
-            self.__class__.nodes.append(self)
-            self._id = len(self.__class__.nodes) - 1
+        if self not in self.__class__.all_:
+            self.__class__.all_.append(self)
+            self._id = len(self.__class__.all_) - 1
         else:
-            self_id = self.__class__.nodes.index(self)
+            self_id = self.__class__.all_.index(self)
 
     @classmethod
     def _no_instances(cls):
-        if not len(cls.nodes):
+        if not len(cls.all_):
             raise cls.NoNodeError(
                     'The set of Nodes is empty. Add a node first'
                     )
@@ -93,7 +93,7 @@ class Node():
             cls._no_instances()
         except cls.NoNodeError:
             return None
-        for node in cls.nodes:
+        for node in cls.all_:
             if uid == node.uid:
                 return node
         return None
@@ -208,12 +208,13 @@ class TemporalGraph(_Graph):
                 #self.node2s = [
                 #    Node.get_node(node)._id for node in self._node2s
                 #    ]
-                self.starts = [
-                    an_event.get(event_keys['start']) for an_event in events
-                    ]
-                self.stops = [
-                    an_event.get(event_keys['stop']) for an_event in events
-                    ]
+                # NOTE: other stage had get for self.starts and self.stops
+                self.starts = np.array([
+                    an_event.pop(event_keys['start']) for an_event in events
+                    ])
+                self.stops = np.array([
+                    an_event.pop(event_keys['stop']) for an_event in events
+                    ])
                 self.event_params = events
         elif events is not None:
             # ToDo: Handle the import from events only case
@@ -304,7 +305,6 @@ class TemporalGraph(_Graph):
             # in this case self.o_ids has to be a list of integers with all
             # integer values up to n that map to positions in nodes_start and
             # nodes_end. Simply re-map positions...
-            print vectorize_func(xrange(self.n))
             self.nodes_start = self.nodes_start[vectorize_func(self.o_ids)]
             self.nodes_end = self.nodes_end[vectorize_func(self.o_ids)]
         else:
