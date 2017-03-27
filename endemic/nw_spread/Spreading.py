@@ -400,123 +400,212 @@ class Scenario():
     class InitiateInfectionError(Exception):
         pass
 
-
-    # this is an internal method (_...) so the idea is to never explicitly having to call this method.
     def _initiate_infection(self, strain, ):
         """
-        Arguments:
-            - strains: dict, key is the name of a strain, value is a list of node id's or the name of another pathogen
-                strain or 'random'. If the value is 'random' then one random host is infected.
-                If the value gives another pathogen strain, then a randomly chosen individual that is currently infected
-                with the indicated pathogen strain is chosen and will be infected with the strain provided in the key.
-                Eg. - strain = {'wild_type':[1,5,10]}: infects hosts 1,5 and 10 with the
-                      wild type strain.
-                    - strain = {'mutant_1': 'wild_type'}: infect a randomly chose host that is currently infected with
-                      the wild_type strain with the mutant_1 strain.
+        Parameters:
+        -----------
+        :param strain: dict, key is the name of a strain, value is a list of
+                node id's or the name of another pathogen strain or 'random'.
+                If the value is 'random' then one random host is infected.
+                If the value gives another pathogen strain, then a randomly
+                chosen individual that is currently infected with the indicated
+                pathogen strain is chosen and will be infected with the strain
+                provided in the key.
+                If the value is another dict, it can contain the keys 't_inf',
+                'host' and 'nbr_infectins'. 't_inf' specifies the time of the
+                infection and 'host' can either be a list of node id's, another
+                pathogen name or 'random'. The default value of 'host' is
+                'random'. 'nbr_infections' specifies how many host should be 
+                infected, default is 1.
+                Eg. - strain = {'wild_type':[1,5,10]}: infects hosts 1,5 and 10
+                        with the wild type strain.
+                    - strain = {'mutant_1': 'wild_type'}: infect a randomly
+                        chose host that is currently infected with the
+                        wild_type strain with the mutant_1 strain.
+                    - strain = {'wild_type': {
+                            't_inf': 10, 'host': 'random', 'nbr_infection':2
+                            }}: 
+                        infect two random hosts at time 10.
         """
         for name in strain:
             # make sure the strain exists
             if name not in self.pathogen.ids.keys():
-                raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
-            # if node ids are given as values for the specified strain
-            if isinstance(strain[name], list):  # type(strain[name]) is not str:
-                for node_id in strain[name]:
-                    # create infection events for the specified node. See Event class for further details
-                    self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False, ))
+                raise self.WrongPathogenError(
+                        "There is no pathogen strain with the name <%s>."%name
+                        )
             # if a dictionary is given, infect random node at time t_inf
-            elif isinstance(strain[name], dict):
-                t_inf = strain[name].get('t_inf', self.contact_structure.t_start)
-                num_infections = strain[name].get('num_infections', 1)
-                candidadate_nodes = self.contact_structure.get_nodes_by_lifetime(t_inf)
-                if len(candidadate_nodes) < num_infections:
-                    raise self.InitiateInfectionError('Not enough hosts in given time span to introduce %s infections'
-                                                      % num_infections)
-                for node_id in random.sample(candidadate_nodes, num_infections):
-                    self.queue.put_nowait(Event(t_inf, node_id, self.pathogen.ids[name], False, ))
-            # in this case we need to choose at random an individual and create an infection event
-            elif strain[name] == 'random':
-                self.queue.put_nowait(
-                    Event(self.t, nrand.randint(0, self.contact_structure.n), self.pathogen.ids[name], False, )
-                )
-            # if another strain is the value
-            elif strain[name] in self.pathogen.ids.keys():
-                # get the ids of of name and strain[name]
-                target_id = self.pathogen.ids[strain[name]]
-                mut_id = self.pathogen.ids[name]
-                # check if strain[name] is present in the population, if not raise error.
-                potentials = [
-                    xx[0] for xx in filter(
-                        lambda x: x[1] == target_id,
-                        zip(range(self.contact_structure.n), self.current_view)
-                    )
-                ]
-                if not potentials:
-                    raise self.InitiateInfectionError('There are no host infected with %s.' % strain[name])
-                # chose randomly one of the strain[name] infected hosts -> new_mutated.
-                new_mutated = random.choice(potentials)
-                # now that we have chose our host to mutate, we need to filter the existing event queue for any events
-                # associated with this host (e.g. this host will not infect its neighbours with its previous strain any-
-                # longer.
-                # copy the event queue into a list
-                pending_events = []
-                while True:
-                    try:
-                        pending_events.append(self.queue.get_nowait())
-                    except Empty:
-                        break
-
-                # remove all entries where new_mutated infects plus the one where he recovers an recreate the queue
-                for an_event in pending_events:
-                    if an_event[1][3] != new_mutated:  # filter out infections where new_mutated is the source
-                        if an_event[1][0] != new_mutated:  #do not take the recover event for new_mutated
-                            self.queue.put_nowait(an_event)
-
-                # add infection event of new_mutated with strain[name]
-                # make sure that the infection overwrites new_mutated's old status (use inf_event = False)
-                self.queue.put_nowait(Event(self.t, new_mutated, mut_id, False, ))
+            if isinstance(strain[name], dict):
+                t_inf = strain[name].get(
+                        't_inf', self.contact_structure.t_start
+                        )
+                hosts = strain[name].get(
+                        'host', 'random' # defalut is random
+                        )
             else:
-                raise self.InitiateInfectionError(
-                    'The new infection event failed. Have a look at how to specify an infection event:\n{}'.format(
-                        self._initiate_infection.__doc__
-                    )
-                )
-                # self._init_queue()
+                t_inf = self.t
+                hosts = strain[name]
+            # carry out the infection at each t_inf
+            def _expander(_keys, _values):
+                if isinstance(_keys, list):
+                    if isinstance(_values, list):
+                        if isinstance(_values[0],list):
+                            return _keys, _values
+                        else:
+                            return _keys, [_values for _ in _keys]
+                    else:
+                        return _keys, [[_values] for _ in _keys]
+                else:
+                    if isinstance(_values, list):
+                        return [_keys], [_values]
+                    else:
+                        return [_keys], [[_values]]
+            t_inf, hosts = _expander(t_inf, hosts)
+
+            # now the infections are set for the specified strain
+            for i in xrange(len(t_inf)):
+                a_t_inf = t_inf[i]
+                if not self.contact_structure.is_static:
+                    candidate_nodes = \
+                            self.contact_structure.get_nodes_by_lifetime(
+                                a_t_inf
+                                )
+                else:
+                    candidate_nodes = range(self.contact_structure.n)
+                if len(candidate_nodes) < 1:
+                    raise self.InitiateInfectionError(
+                            """
+
+ No host at time %s to be infected.
+
+                            """%a_t_inf
+                            )
+                # now for all the infection times we have a set of present
+                # hosts
+                for a_host in hosts[i]:
+                    if a_host == 'random':
+                        the_host = random.choice(
+                                candidate_nodes
+                                )
+                        self.queue.put_nowait(
+                            Event(
+                                a_t_inf, the_host, 
+                                self.pathogen.ids[name], False,
+                                )
+                            )
+                    # if the host is specified by id
+                    elif isinstance(a_host, int):
+                        if a_host not in candidate_nodes:
+                            raise self.InitiateInfectionError(
+                                    """
+                                       The host with ID %s does not exist at 
+                                       the time it should be infected, %s.
+                                    """%(a_host, a_t_inf)
+                                    )
+                        self.queue.put_nowait(
+                                Event(
+                                    a_t_inf, a_host, self.pathogen.ids[name],
+                                    False,
+                                    )
+                                )
+                    # the host must be a specific strain
+                    else:
+                        if a_t_inf != self.t:
+                            raise self.InitiateInfectionError(
+                                    """
+                                        The targeted infection of a host 
+                                        infected with a specific pathogen
+                                        is only possible if the infection 
+                                        time is the current time of the 
+                                        simulation.
+                                        Current time: %s
+                                        Time of infection: %s
+                                    """%(self.t, a_t_inf)
+                            )
+                        # get the ids of of name and hosts
+                        target_id = self.pathogen.ids[a_host]
+                        mut_id = self.pathogen.ids[name]
+                        # check if the target pathogen is present in the
+                        # population, if not raise an error.
+                        potentials = [
+                            filter(
+                                lambda x: x in filter(
+                                    lambda x: self.current_view[x] == target_id,
+                                    range(self.contact_structure.n)
+                                ), candidate_nodes
+                            )
+                        ]
+                        if not potentials:
+                            raise self.InitiateInfectionError(
+                                    """
+                                        There are no host infected with %s at 
+                                        the moment.
+                                    """%a_host
+                                    )
+                        # chose at random one specified infected
+                        # host -> new_mutated.
+                        new_mutated = random.choice(potentials)
+                        # now that we have chose our host to mutate, we need to
+                        # filter the existing event queue for any events
+                        # associated with this host (e.g. this host will not
+                        # infect its neighbours with its previous strain
+                        # anylonger.
+                        # copy the event queue into a list
+                        pending_events = []
+                        while True:
+                            try:
+                                pending_events.append(self.queue.get_nowait())
+                            except Empty:
+                                break
+                        # remove all entries where new_mutated infects plus the
+                        # one where he recovers an recreate the queue
+                        for an_event in pending_events:
+                            # filter out infections where new_mutated is the
+                            # source
+                            if an_event[1][3] != new_mutated:
+                                #do not take the recover event for new_mutated
+                                if an_event[1][0] != new_mutated:  
+                                    self.queue.put_nowait(an_event)
+                        # add infection event of new_mutated with hosts
+                        # make sure that the infection overwrites new_mutated's
+                        # old status (use inf_event = False)
+                        self.queue.put_nowait(
+                                Event(a_t_inf, new_mutated, mut_id, False, )
+                                )
         return 0
 
-    # this method is not used anymore. Could be removed.
-    def initiate_infection(self, strain, ):
-        """
-        Function to set the initial seed for an infection.
-        
-        Arguments:
-            - strains: dict, key the name of a strain, value a list of node id's or
-                'random'. If the value is 'random' then one random host is infected.
-                Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
-                    wild type strain.
-        """
-        self.t = 0
-        for name in strain:
-            if name not in self.pathogen.ids.keys():
-                raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
-            if type(strain[name]) is not str:
-                for node_id in strain[name]:
-                    self.current_view[node_id] = self.pathogen.ids[name]
-            else:
-                self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+    # # this method is not used anymore. Could be removed.
+    # def initiate_infection(self, strain, ):
+    #     """
+    #     Function to set the initial seed for an infection.
+    #     
+    #     Arguments:
+    #         - strains: dict, key the name of a strain, value a list of node id's or
+    #             'random'. If the value is 'random' then one random host is infected.
+    #             Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
+    #                 wild type strain.
+    #     """
+    #     self.t = 0
+    #     for name in strain:
+    #         if name not in self.pathogen.ids.keys():
+    #             raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
+    #         if type(strain[name]) is not str:
+    #             for node_id in strain[name]:
+    #                 self.current_view[node_id] = self.pathogen.ids[name]
+    #         else:
+    #             self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+    #         self._init_queue()
+    #     return 0
 
-            self._init_queue()
-        return 0
-
-    # unused method can be removed (along with self.initiate_infection)
-    def _init_queue(self, ):
-        """
-        Initiate the priority queue according to self.current_view
-        """
-        for node_id in xrange(self.contact_structure.n):
-            if self.current_view[node_id] != -1:
-                self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True, ))
-                self.current_view[node_id] = -1
-        return 0
+    # # unused method can be removed (along with self.initiate_infection)
+    # def _init_queue(self, ):
+    #     """
+    #     Initiate the priority queue according to self.current_view
+    #     """
+    #     for node_id in xrange(self.contact_structure.n):
+    #         if self.current_view[node_id] != -1:
+    #             self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True, ))
+    #             self.current_view[node_id] = -1
+    #     return 0
 
     # here below follow several _handle_event... functions each one of these take an event (node id, token id, inf type,
     # source) as an argumnet (see Event class for further details) and digest it. Based on the event self.current_view
