@@ -396,6 +396,7 @@ class Scenario():
     class InitiateInfectionError(Exception):
         pass
 
+
     # this is an internal method (_...) so the idea is to never explicitly having to call this method.
     def _initiate_infection(self, strain, ):
         """
@@ -418,6 +419,19 @@ class Scenario():
                 for node_id in strain[name]:
                     # create infection events for the specified node. See Event class for further details
                     self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False,))
+            # if a dictionary is given, infect random node between t_start and t_end
+            elif isinstance(strain[name], dict):
+                t_start = strain[name].get('t_start', self.contact_structure.t_start)
+                t_end = strain[name].get('t_end', self.contact_structure.t_stop)
+                num_infections = strain[name].get('num_infections', 1)
+                candidadate_nodes = self.contact_structure.get_nodes_by_lifetime(t_start, t_end)
+                # print "Candidates: " + str(candidadate_nodes)
+                if len(candidadate_nodes) < num_infections:
+                    raise self.InitiateInfectionError('Not enough hosts in given time span to introduce %s infections'
+                                                      % num_infections)
+                for node_id in random.sample(candidadate_nodes, num_infections):
+                    self.queue.put_nowait(Event(self.t, node_id, self.pathogen.ids[name], False,))
+                    # print "infected node " + str(node_id)
             # in this case we need to choose at random an individual and create an infection event
             elif strain[name] == 'random':
                 self.queue.put_nowait(
@@ -488,6 +502,7 @@ class Scenario():
                     self.current_view[node_id] = self.pathogen.ids[name]
             else:
                 self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+
             self._init_queue()
         return 0
 

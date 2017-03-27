@@ -54,13 +54,11 @@ class TemporalGraph(_Graph):
         if isinstance(source, str):  # it is a file
             self._load(source, **params)
         else:  # source must be an EventQueue then
-            # to do: read from event queue
-            # should also get self.starts, ...
-            pass
+            # copy events that were passed by arguments
+            self._copy_events(**params)
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
         self.o_ids = list(np.union1d(self.node1s, self.node2s))
-
         n = len(self.o_ids)
 
         def get_id(an_id):
@@ -70,6 +68,24 @@ class TemporalGraph(_Graph):
         self.node1s = v_get_id(self.node1s)
         self.node2s = v_get_id(self.node2s)
         # now we need to remap the node ids
+
+        # If specified add lifetime of nodes
+        self.nodes_start = np.repeat(self.t_start, n)
+        self.nodes_end = np.repeat(self.t_stop, n)
+        nodes_start = params.get('nodes_start', None)
+        nodes_end = params.get('nodes_end', None)
+        if isinstance(nodes_start, dict) and isinstance(nodes_end, dict):
+            # in case self.o_ids is a list of node names of general type (e.g. string)
+            for node_name, val in enumerate(nodes_start):
+                self.nodes_start[v_get_id(node_name)] = val
+            for node_name, val in enumerate(nodes_end):
+                self.nodes_end[v_get_id(node_name)] = val
+        elif isinstance(nodes_start, np.ndarray) and isinstance(nodes_end, np.ndarray):
+            # in this case self.o_ids has to be a list of integers with all integer values up to n that map to
+            # positions in nodes_start and nodes_end. Simply re-map positions...
+            self.nodes_start = nodes_start[v_get_id(range(n))]
+            self.nodes_end = nodes_end[v_get_id(range(n))]
+
         _Graph.__init__(self, n=n)
 
     def _load(self, source, **params):
@@ -161,6 +177,27 @@ class TemporalGraph(_Graph):
             self.stops = data[self.stop_tag]
             self.node1s = data[self.node1_tag]
             self.node2s = data[self.node2_tag]
+
+    def _copy_events(self, **params):
+        """ copy events informations from existing arrays given as keyword arguments.
+
+        Parameters
+        ----------
+
+        starts: float array
+            starting times of the meetings
+        stops: float array
+            stoping times of the meetings
+        node1s: int array
+            IDs of the first mice for each meetings
+        node2s: int array
+            IDs of the second mice for each meetings
+        """
+
+        self.starts = np.array(params['starts'], dtype=np.float64)
+        self.stops = np.array(params['stops'], dtype=np.float64)
+        self.node1s = np.array(params['node1s'], dtype=np.int64)
+        self.node2s = np.array(params['node2s'], dtype=np.int64)
 
 
 class Graph(_Graph):
