@@ -1431,6 +1431,8 @@ class Scenario():
                 # get the nodes recover time
                 if general:
                     if mode != 'keep':
+                        # could we not just take it's old recover time?
+                        # no, as the recover time will change for individuals that were treated before but not anymore
                         recover_time = self.pathogen.rec_dists[token_id].get_val()
                     else:
                         recover_time = event[0] - self.t
@@ -1457,7 +1459,9 @@ class Scenario():
                 inf_times = inf_times[inf_times < recover_time]  # same thing for the infection times
                 for x in xrange(inf_times.size):  # put all the infection events of neighbours into the queue
                     self.queue.put_nowait(Event(self.t + inf_times[x], nn[x], token_id, True, node))
-        if nodes_to_deal.count(1):  # if not all nodes are dealt with
+        if nodes_to_deal.count(1):
+            # ToDo: this is not a good strategy as it will break an SI model. Don't drop mutation events in the queue
+            #   and change each mutation event to a recovery.
             while 1 in nodes_to_deal:
                 node = nodes_to_deal.index(1)
                 nodes_to_deal[node] = 0  # this node will be dealt with next time
