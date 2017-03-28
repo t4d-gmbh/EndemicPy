@@ -201,7 +201,8 @@ class ContactNetwork(ContactStructure):
             #do simulations etc.
             #we want to update the topology:
             my_graph.new_realization()  #change my_graph
-            my_contact_nw.update_topology(graph=my_graph)  #update my_coontact_nw according to new topology of my_graph
+            #update my_coontact_nw according to new topology of my_graph
+            my_contact_nw.update_topology(graph=my_graph)  
 
         :param graph:
         :type graph: nw_construct.Graph
@@ -301,6 +302,7 @@ class ContactSequence(ContactStructure):
                 # now put whatever remains of the evenst in event_params
                 self.event_params = events
 
+    # ToDo: Also to nw_construct?
     def get_events(self, node_id, start_time, delta_t):
         """
         Returns a view of the start times and stop times as well as the
@@ -331,6 +333,7 @@ class ContactSequence(ContactStructure):
         )
         return nn, self.starts[the_filter], self.stops[the_filter]
 
+    # ToDo: This method belongs to nw_construct
     def get_nodes_by_lifetime(self, t):
         """
         Returns all nodes that are "active" (as specified by
@@ -343,67 +346,67 @@ class ContactSequence(ContactStructure):
 
         return [i for i in xrange(len(node_indices)) if node_indices[i]]
 
-    def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
-        """
-        Finds all the nodes connected to source_node by a time-respecting path
-        in a given time window
+#    def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
+#        """
+#        Finds all the nodes connected to source_node by a time-respecting path
+#        in a given time window
+#        
+#        Parameters
+#        ----------
+#        source_node : int
+#            the source node for the search        
+#        start_time : float 
+#            the starting time of the search
+#        delta_t: float
+#            stop_time = `start_time` + `delta_t`        
+#        
+#        Returns
+#        -------
+#        distances : list of ints
+#            distances from the source node for each node (-1 means that the node is unreachable)
+#        delays : list of floats
+#            time delays between each node and the source node
+#        
+#        Call
+#        ----
+#        distances, delays = get_temporally_connected_nodes(source_node, start_time, delta_t)
+#        
+#        11.08.2015, A.Bovet
+#        """
+#        # array holding the distance from the source node for all found nodes (-1 = not treated)
+#        distances = [-1 for _ in xrange(self.n)]    
+#        distances[source_node] = 0
+#    
+#        # arry holding the delay (temporal distance between the source node and the 
+#        # temporally connected nodes (-1 = not treated)
+#        delays = [-1 for _ in xrange(self.n)]    
+#        delays[source_node] = start_time    
+#        
+#        # queue containing the nodes whose neighbours need to be searched
+#        search_queue = Queue(maxsize = self.n)
+#        search_queue.put_nowait(source_node)
+#        
+#        while not search_queue.empty():
+#            node = search_queue.get_nowait()
+#            dist = distances[node]
+#            start = delays[node]
+#            # lookup time respecting neighbours         
+#            nn, nstarts, _ = self.get_events(node, start, start_time + delta_t - start)
+#            
+#            for neigh, neigh_start in zip(nn, nstarts):
+#                # if we haven't aready visited this node
+#                if distances[neigh] == -1:
+#                    distances[neigh] = dist + 1
+#                    delays[neigh] = neigh_start 
+#                    search_queue.put_nowait(neigh)
+#        
+#        delays = [delays[i]- start_time for i in xrange(len(delays))]
+#        return distances, delays
         
-        Parameters
-        ----------
-        source_node : int
-            the source node for the search        
-        start_time : float 
-            the starting time of the search
-        delta_t: float
-            stop_time = `start_time` + `delta_t`        
-        
-        Returns
-        -------
-        distances : list of ints
-            distances from the source node for each node (-1 means that the node is unreachable)
-        delays : list of floats
-            time delays between each node and the source node
-        
-        Call
-        ----
-        distances, delays = get_temporally_connected_nodes(source_node, start_time, delta_t)
-        
-        11.08.2015, A.Bovet
-        """
-        # array holding the distance from the source node for all found nodes (-1 = not treated)
-        distances = [-1 for _ in xrange(self.n)]    
-        distances[source_node] = 0
-    
-        # arry holding the delay (temporal distance between the source node and the 
-        # temporally connected nodes (-1 = not treated)
-        delays = [-1 for _ in xrange(self.n)]    
-        delays[source_node] = start_time    
-        
-        # queue containing the nodes whose neighbours need to be searched
-        search_queue = Queue(maxsize = self.n)
-        search_queue.put_nowait(source_node)
-        
-        while not search_queue.empty():
-            node = search_queue.get_nowait()
-            dist = distances[node]
-            start = delays[node]
-            # lookup time respecting neighbours         
-            nn, nstarts, _ = self.get_events(node, start, start_time + delta_t - start)
-            
-            for neigh, neigh_start in zip(nn, nstarts):
-                # if we haven't aready visited this node
-                if distances[neigh] == -1:
-                    distances[neigh] = dist + 1
-                    delays[neigh] = neigh_start 
-                    search_queue.put_nowait(neigh)
-        
-        delays = [delays[i]- start_time for i in xrange(len(delays))]
-        return distances, delays
-        
-    def get_influence_set(self, node):
-        """ returns the set of node indexes of the influence set of node "node"  """
-        distances, _ = self.get_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
-        return [i for i, x in enumerate(distances) if x != -1]
+#    def get_influence_set(self, node):
+#        """ returns the set of node indexes of the influence set of node "node"  """
+#        distances, _ = self.get_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
+#        return [i for i, x in enumerate(distances) if x != -1]
 
 class Host():
     def __init__(self, an_id, neighbours=None, susceptible=1):
