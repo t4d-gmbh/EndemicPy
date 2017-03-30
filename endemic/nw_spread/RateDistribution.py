@@ -1,4 +1,4 @@
-from numpy import vectorize, array, float64, apply_along_axis
+from numpy import vectorize, array, float64
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
@@ -37,22 +37,26 @@ def docstr_param(*sub):
 def inf_time(**kwargs):
     """
         Return an array of size {0} with all elements equal to MAX_LIM = {1}.
-        Note: You can adapt both the size and the MAX_LIM by passing the 
+        Note: You can adapt both the size and the MAX_LIM by passing the
         explicitly as arguments:
             e.g. inf_time(size=10, MAX_LIM=10000)
-    """ 
+    """
     return array(
             [MAX_LIM] * kwargs.get('size', DEFAULT_VALUES['size']),
             dtype=float64
             )
-    
 
-@docstr_param(DEF_SIZE, DEF_SCALE, DEF_LOC)
+
+@docstr_param(
+        DEFAULT_VALUES['size'],
+        DEFAULT_VALUES['scale'],
+        DEFAULT_VALUES['loc']
+        )
 class Distro(object):
     """
         This class holds a queue of random times drawn from a given
         distribution with a specified scale.
-        
+
         Parameters:
         -----------
         :param distribution_type: Specifies which distribution to use.
@@ -64,8 +68,8 @@ class Distro(object):
         :param kwargs: Several parameters are possible:
             - size: Predefined size of the queue.
                 (default: {0})
-            - set of parameters specific to the distribution that is 
-                chosen. For details about the requested parameters check the 
+            - set of parameters specific to the distribution that is
+                chosen. For details about the requested parameters check the
                 distribution definitions:
                     - exp: numpy.random.exponential
                     - norm: numpy.random.normal
@@ -80,13 +84,13 @@ class Distro(object):
         if self.distribution_type == 'exp':
             self.draw_fct = exponential
             self._dist_params = {
-                'scale':get_value(kwargs, 'scale'),
+                'scale': get_value(kwargs, 'scale'),
                 'size': get_value(kwargs, 'size')
                 }
         elif self.distribution_type == 'normal':
             self.draw_fct = normal
             self._dist_params = {
-                'scale':get_value(kwargs, 'scale'),
+                'scale': get_value(kwargs, 'scale'),
                 'size': get_value(kwargs, 'size'),
                 'log': get_value(kwargs, 'loc')
                 }
@@ -97,7 +101,7 @@ class Distro(object):
                         )
                     )
         # handle the special case of scale == 0
-        if not self.scale:
+        if not self._dist_params['scale']:
             self.draw_fct = inf_time
         self.queue = SimpleQueue(maxsize=self.size + 1)
         self.v_put = vectorize(self.queue.put_nowait)
@@ -107,9 +111,9 @@ class Distro(object):
 
     class DistributionTypeError(Exception):
         pass
-    
+
     def fillup(self):
-        self.v_put(abs(self.draw_fct(*self._dist_args, **self._dist_kwargs)))
+        self.v_put(abs(self.draw_fct(**self._dist_params)))
         return 0
 
     def get_val(self, a=None):
@@ -121,7 +125,7 @@ class Distro(object):
         except Empty:
             self.fillup()
             return self.queue.get_nowait()
-    
+
     def __getstate__(self):
         d = dict(self.__dict__)
         queue = d.pop('queue')
@@ -149,7 +153,7 @@ class Distro(object):
         self.__dict__['v_get'] = vectorize(self.get_val)
         if not self.scale:
             self.queue = SimpleQueue(maxsize=self.size + 1)
-            # this is specific to the queue, thus "reinit" here 
+            # this is specific to the queue, thus "reinit" here
             self.v_put = vectorize(self.queue.put_nowait)
             self.draw_fct = inf_time
             self.fillup()
