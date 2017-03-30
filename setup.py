@@ -46,7 +46,7 @@ setup(
     author='Jonas I. Liechti',
     author_email='jon.liechti@gmail.com',
     url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy',
-    download_url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy/tarball/%s' % str(version),
+    download_url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy/repository/archive.tar.gz?ref=v%s' % str(version),
     keywords=['disease spread', 'network', 'SIS', 'SIR'],
     packages=packages,
     package_data={'': ['LICENSE', 'HISTORY']},

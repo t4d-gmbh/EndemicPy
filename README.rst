@@ -7,4 +7,4 @@ Features
 
 - Static and temporal host networks
 
-- Extended ...
+- Extended .
