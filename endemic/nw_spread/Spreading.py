@@ -1272,7 +1272,8 @@ class Scenario():
                     if self.t >= t_next_bin:
                         if with_halt_condition:
                             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                        t_next_bin += dt
+                        while self.t >= t_next_bin:
+                            t_next_bin += dt
                         # check if we are in quasistable state (QSS) if yes, stop the sim
                         if self.quasistable(focus_strain_ids, surviving_strain_ids):
                             halt = True
@@ -1394,7 +1395,8 @@ class Scenario():
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
                             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                            t_next_bin += dt
+                            while self.t >= t_next_bin:
+                                t_next_bin += dt
                         if test_cond(self):
                             return 0
                     except Empty:
@@ -1422,7 +1424,8 @@ class Scenario():
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
                             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                            t_next_bin += dt
+                            while self.t >= t_next_bin:
+                                t_next_bin += dt
                     except Empty:
                         self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         break
