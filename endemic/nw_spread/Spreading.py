@@ -283,8 +283,6 @@ class Scenario():
         inf_times = []
         start_times = []
         stop_times = []
-        start_times = []
-        stop_times = []
         # TODO: This is list op on np array, not ideal!
         for i in xrange(len(diff_nn)):
             stop_time = _stop_times[i]
@@ -308,16 +306,19 @@ class Scenario():
 
     def _get_neighbours_dynamic_single(self, node_id, token_id):
         """
-        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
-            with a dynamic network
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a dynamic network
         :param node_id:
         :param token_id:
         :return:
         """
         recover_time = self.pathogen.rec_dists[token_id].get_val()
-        nn, start_times, stop_times = self.contact_structure.get_events(node_id, self.t, recover_time)
+        nn, start_times, stop_times = self.contact_structure.get_events(
+                node_id, self.t, recover_time
+                )
         # this should return id_list, start_array, stop_array
-        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
+        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
+            else array([])
         # cut the start_times with the current time:
         start_times = where(
             start_times >= self.t,
