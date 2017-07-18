@@ -328,7 +328,6 @@ class Scenario():
         stop_times -= self.t
         return nn, recover_time, inf_times, start_times, stop_times
 
-
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
     # ideally reset should be called in __init__ to avoid any code duplication.
     def reset(self, graph=None):
@@ -350,7 +349,8 @@ class Scenario():
             'param_alternation': {}
         }
         self.outcome = {}
-        self.t = 0
+        self.t = self.contact_structure.t_start if not \
+                self.contact_structure.is_static else 0
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         self._counts_over_time = zeros((1, self.pathogen.n))
         self.current_view = [-1 for _ in xrange(self.contact_structure.n)]  # Indicates the current status of the hosts
@@ -751,8 +751,8 @@ class Scenario():
                         self.t, self.contact_structure.all_nodes[node_id]
                         ) 
                     )
-        else: 
-            #the Event is an infection
+        else:
+            # the Event is an infection
             if inf_event and self.current_view[node_id] != -1: 
                 # infection of infected host: do nothing
                 pass 
@@ -1201,7 +1201,7 @@ class Scenario():
              with_treatment=False,
              halt_condition=False,
              assert_survival=False,
-             t_start = None,
+             t_start=None,
              **params
     ):
         """
