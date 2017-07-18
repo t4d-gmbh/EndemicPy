@@ -168,8 +168,11 @@ class ContactSequence(ContactStructure):
 
     def get_events(self, node_id, start_time, delta_t):
         """
-        Returns a view of the start times and stop times as well as the involved nodes of all event vor a given
+        Returns a view of the start times and stop times as well as the involved nodes of all event for a given
         node within a time range (start_time, start_time + delta_t)
+
+        Parameter:
+        ----------
         :param node_id:
         :param start_time:
         :param delta_t:
