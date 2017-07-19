@@ -1,3 +1,33 @@
 # EndemicPy
+## Transmission dynamics in various structures
 
-The package will be available after publication of the related articles.
+EndemicPy, of just `endemic` is a python package under development aiming to simulate a vast range of transmission dynamics on various host structure models.
+
+
+## How to use _endemic_
+_endemic_ can either be installed or one can simply copy the [endemic](endemic/) folder into the same folder as the python script that is using the package.
+If you decide to simply copy the folder, you can ignore the installation step below.
+
+### Versions
+_endemic_ has different versions that were (and are) developed for various projects. 
+
+**You need to make sure that you use the correct version for the type of simulations you plan to do.**
+Using the wrong version might result in errors or incoherent output.
+
+To learn which version is the right one for you here is a list of the published projects and which version they used:
+
+- **[v0.1.0]()** for [Short-term activity cycles impede information transmission in ant colonies](https://doi.org/10.1371/journal.pcbi.1005527)
+
+### Dependencies
+The only non-standard python package _endemic_ uses in [numpy](http://www.numpy.org/), so please make sure that you have a recent numpy version installed.
+
+### Installation
+To install the package you might want to setup a [virtualenv](https://virtualenv.pypa.io/en/stable/) which is not a requirement but a recommendation. 
+To install the package, simply open a console, `cd` into the EndemicPy folder and type:
+
+    python setup.py install
+
+If everything works fine, you can now simply import _endemic_ as a package in your python scripts.
+
+### Examples
+Check out the [examples](examples/) for more information on how EndemicPy is used in different projects.
