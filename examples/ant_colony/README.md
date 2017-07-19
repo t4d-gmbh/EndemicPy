@@ -1,7 +1,8 @@
 # UIU Dynamics on Ant Colonies
 
-**Please make sure that you use endemicPy version [v0.1.0]() if you want to run this example**
-Click [here]() to download this version.
+**Please make sure that you use endemicPy version [v0.1.0](https://github.com/j-i-l/EndemicPy/releases/tag/v0.1.0) if you want to run this example**
+
+Click [here](https://github.com/j-i-l/EndemicPy/archive/v0.1.0.zip) to download this version.
 
 
 This is a minimal working example to simulate UIU dynamics on connection data of an ant colony.
