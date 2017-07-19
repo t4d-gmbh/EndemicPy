@@ -13,4 +13,4 @@ Note also hat the present examples do not completely span the range of applicait
 ## Studies:
 
 - **[Short-term activity cycles impede information transmission in ant colonies](https://doi.org/10.1371/journal.pcbi.1005527)** studies information propagation on ant colonies.
-    Have a look at [ant_colony/README](./ant_colony/README.md) for further details on the use of endemic in this study.
+    Have a look at [ant_colony/](./ant_colony/) for further details on the use of endemic in this study.
