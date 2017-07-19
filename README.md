@@ -9,12 +9,14 @@ _endemic_ can either be installed or one can simply copy the [endemic](endemic/)
 If you decide to simply copy the folder, you can ignore the installation step below.
 
 ### Versions
-_endemic_ has different versions that were (and are) developed for various projects. 
+_endemic_ has different releases that were (and are) developed for various projects. 
 
-**You need to make sure that you use the correct version for the type of simulations you plan to do.**
+*You need to use the correct release for the type of simulations you plan to do.*
 Using the wrong version might result in errors or incoherent output.
 
-To learn which version is the right one for you here is a list of the published projects and which version they used:
+**If you are using EndemicPy for your own work, please make sure that you correctly refer to this package and to the research article related to the specific release you are using.**
+
+To learn which release is the right one for you, here is a list of the published projects along with the used release:
 
 - **[v0.1.0](https://github.com/j-i-l/EndemicPy/releases/tag/v0.1.0)** for [Short-term activity cycles impede information transmission in ant colonies](https://doi.org/10.1371/journal.pcbi.1005527)
 
