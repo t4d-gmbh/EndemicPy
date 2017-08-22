@@ -1,7 +1,7 @@
 # EndemicPy
 ## Transmission dynamics in various structures
 
-EndemicPy, of just _endemic_ is a python package under development aiming to simulate a vast range of transmission dynamics on various host structure models.
+EndemicPy, or simply _endemic_ is a python package under development aiming to simulate a vast range of transmission dynamics on various host structure models.
 
 
 ## How to use _endemic_
