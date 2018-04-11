@@ -50,10 +50,19 @@ class Scenario():
                 - t_max: gives the maximal time after which the simulation
                     stops.  Defaults=1000
                 - t_burn: time window for the exclusive spread of the wild type.
-                - dt: the time step at which the current status should be
-                    recorded.
-                - default_susceptibility: Value [0,1] to be used for any
-                    missing susceptibility.  Default=1.
+                - dt: the time step at which the current status should be recorded.
+                - default_susceptibility: Value [0,1] to be used for any missing susceptibility.
+                    Default=1.
+                - single_transmission: Boolean (default: False) indicating 
+                    whether on contact between a carrying and a susceptible 
+                    individual several transmission events should be possible or not.
+                    Note: Traditional SIS, SIR or similar processes are not 
+                    restrained to a single transmission per contact. 
+                TODO: Is this even present?
+                - ignore_dyn_nodes_in_log: If True, nodes that expand their lifespan are not set to -2 in self.log but
+                    keep their state or they may undergo future state changes (e.g. recovery). This option only has an
+                    effect if the contact_structure is a Temporal graph with specified node lifespans (arguments
+                    nodes_start and nodes_end of the TemporalGraph instance)
         """
         # this will store self.current_view at various times
         # Note: this will be replaced with self.outcome so feel free to ignore 
@@ -75,8 +84,6 @@ class Scenario():
         }
         # this will hold processed output
         self.outcome = {}
-        # set the default starting time to 0
-        self.t = 0
         self.contact_structure = contact_structure
         self.t = self.contact_structure.t_start if not \
                 self.contact_structure.is_static else 0
@@ -87,6 +94,14 @@ class Scenario():
         self._default_susceptibility = 1 
         # by default drugs do not increase mutation/selection rates
         self._default_drug_selection_factor = 1 
+        # should a contact lead to multiple transmission events:
+        self.single_transmission = params.get('single_transmission', False)
+        # set the time:
+        self.t = self.contact_structure.t_start if not self.contact_structure.is_static else 0
+        self.pathogen = pathogen
+        # init of optional and internal arguments
+        self._default_susceptibility = 1  # by default hosts are susceptible
+        self._default_drug_selection_factor = 1  # by default drugs do not increase mutation/selection rates
         # holds the number of infected individuals for each strain
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         # Note: used to contain the status of the host population overt time -
@@ -113,7 +128,7 @@ class Scenario():
                 print '<{0:s}> was specified as an argument.'.format(opt_arg)
         # specify number of decimals to round the log times
         self._log_time_rounding = params.get('log_time_rounding', 2)
-        #
+        self._ignore_dyn_nodes_in_log = params.get('ignore_dyn_nodes_in_log', False)
         self._time_rounding = params.get('time_rounding', 4)
         self._resolve_hots_pathogen_relations()
         # by default do not consider selection
@@ -155,6 +170,9 @@ class Scenario():
         # initialize the priorityqueue which will hold all the events
         # (infection, recovering, mutation, ...)
         self.queue = PriorityQueue()
+        self._inf_file_o = None
+        # This will be the stream to an output file to write incremental steps
+        # into.
 
     @staticmethod
     def _cut_times(recover_time, start_times, stop_times, inf_times, nn):
@@ -330,19 +348,26 @@ class Scenario():
 
     def _get_neighbours_static_single(self, node_id, token_id):
         """
-        This method can be used in any of the (further below defined)
-            event_handler_... methods if we are dealing with a static network
-        Note: This function only draws a single infection time per nearest 
-            neighbour and thus does not correspond to a truly memory less
-            process.
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a static network
+        and if we constrain a contact between a carrying and a susceptible 
+        individual to only ever transmit once.
+        Note: You should have a particular reason why to use this function,
+            if you don't use the _get_neighbours_static function. You can do so
+            by simply not specifying the single_transmission parameter when 
+            initializing a scenario.
+
+        Parameter:
+        ----------
         :param node_id: the index (id) of the node that is being infected.
         :type node_id: int
-        :param token_id: the identifier for the token the node gets. 
+        :param token_id: the identifier for the token the node gets.
+        :type token_id: int
 
         :return: tuple with a list of nearest neighbours, the recover time,
-            the infection times for each neighbour, the starting time of the 
-            interactions (here this is 0 as we have a static network) and the 
-            stop times of each interaction (here this is just the recover time
+            the infection times for each neighbour, the starting time of the
+            interactions (here this is 0 as we have a static network) and the
+            stop times of each interaction (here this is the recover time
             of the infected node as we are in the static case)
 
         """
@@ -350,6 +375,7 @@ class Scenario():
         recover_time = self.pathogen.rec_dists[token_id].get_val()
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
                 else array([])
+
         return nn, recover_time, inf_times, 0., recover_time
 
     def _get_neighbours_dynamic(self, node_id, token_id):
@@ -361,12 +387,60 @@ class Scenario():
         :return:
         """
         recover_time = self.pathogen.rec_dists[token_id].get_val()
+
+        # returns all relevant connections: node_ids, start_times, stop_times
+        diff_nn, _start_times, _stop_times = self.contact_structure.get_events(
+                node_id,
+                self.t,
+                recover_time
+                )
+        # cut the start_times with the current time:
+        _start_times = where(
+            _start_times >= self.t,
+            _start_times - self.t,
+            0.0
+        )
+        _stop_times -= self.t
+        nn = []
+        inf_times = []
+        start_times = []
+        stop_times = []
+        # TODO: This is list op on np array, not ideal!
+        for i in xrange(len(diff_nn)):
+            stop_time = _stop_times[i]
+            start_time = _start_times[i]
+            t_inf = self.pathogen.trans_dists[token_id].get_val()
+            while t_inf + start_time <= stop_time:
+                nn.append(diff_nn[i])
+                inf_times.append(t_inf)
+                start_times.append(start_time)
+                stop_times.append(stop_time)
+                t_inf += self.pathogen.trans_dists[token_id].get_val()
+        return array(
+                nn
+                ), recover_time, array(
+                        inf_times
+                        ), array(
+                                start_times
+                                ), array(
+                                        stop_times
+                                        )
+
+    def _get_neighbours_dynamic_single(self, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a dynamic network
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
         nn, start_times, stop_times = self.contact_structure.get_events(
                 node_id, self.t, recover_time
                 )
         # this should return id_list, start_array, stop_array
         inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
-                else array([])
+            else array([])
         # cut the start_times with the current time:
         start_times = where(
             start_times >= self.t,
@@ -400,7 +474,8 @@ class Scenario():
             'param_alternation': {}
         }
         self.outcome = {}
-        self.t = 0
+        self.t = self.contact_structure.t_start if not \
+                self.contact_structure.is_static else 0
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         self._counts_over_time = zeros((1, self.pathogen.n))
         # Indicates the current status of the hosts
@@ -572,7 +647,7 @@ class Scenario():
     # goes wrong
     class WrongPathogenError(Exception):
         pass
-    
+
     class NoneImplementationError(Exception):
         pass
 
@@ -584,21 +659,38 @@ class Scenario():
 
     # this is an internal method (_...) so the idea is to never explicitly
     # having to call this method.
+    #TODO: This method had major conflicts in the last merge > TO CHECK
     def _initiate_infection(self, strain, ):
         """
-        Arguments:
-            - strains: dict, key is the name of a strain, value is a list of
+
+        Parameters:
+        -----------
+        :param strain: dict, key is the name of a strain, value is a list of
                 node id's or the name of another pathogen strain or 'random'.
-                If the value is 'random' then one random host is infected. 
+                If the value is 'random' then one random host is infected.
+
                 If the value gives another pathogen strain, then a randomly
                 chosen individual that is currently infected with the indicated
                 pathogen strain is chosen and will be infected with the strain
                 provided in the key.
+
+                If the value is another dict, it can contain the keys 't_inf',
+                'host' and 'nbr_infectins'. 't_inf' specifies the time of the
+                infection and 'host' can either be a list of node id's, another
+                pathogen name or 'random'. The default value of 'host' is
+                'random'. 'nbr_infections' specifies how many host should be 
+                infected, default is 1.
+
                 Eg. - strain = {'wild_type':[1,5,10]}: infects hosts 1,5 and 10
                         with the wild type strain.
                     - strain = {'mutant_1': 'wild_type'}: infect a randomly
                         chose host that is currently infected with the
                         wild_type strain with the mutant_1 strain.
+
+                    - strain = {'wild_type': {
+                            't_inf': 10, 'host': 'random', 'nbr_infection':2
+                            }}: 
+                        infect two random hosts at time 10.
         """
         for name in strain:
             # make sure the strain exists
@@ -608,7 +700,16 @@ class Scenario():
                                 <%s>." % name
                                 )
             # if node ids are given as values for the specified strain
-            if isinstance(strain[name], list):  # type(strain[name]) is not str:
+            #TODO: first if is from other branch
+            # if a dictionary is given, infect random node at time t_inf
+            if isinstance(strain[name], dict):
+                t_inf = strain[name].get(
+                        't_inf', self.contact_structure.t_start
+                        )
+                hosts = strain[name].get(
+                        'host', 'random' # defalut is random
+                        )
+            elif isinstance(strain[name], list):  # type(strain[name]) is not str:
                 for node_id in strain[name]:
                     # create infection events for the specified node.
                     # See Event class for further details
@@ -684,45 +785,174 @@ class Scenario():
                         self._initiate_infection.__doc__
                     )
                 )
+            #TODO: this is from other branch
+            #else:
+            #    t_inf = self.t
+            #    hosts = strain[name]
             # self._init_queue()
-        return 0
+            #TODO: here was the ===
+            # carry out the infection at each t_inf
+            def _expander(_keys, _values):
+                if isinstance(_keys, list):
+                    if isinstance(_values, list):
+                        if isinstance(_values[0],list):
+                            return _keys, _values
+                        else:
+                            return _keys, [_values for _ in _keys]
+                    else:
+                        return _keys, [[_values] for _ in _keys]
+                else:
+                    if isinstance(_values, list):
+                        return [_keys], [_values]
+                    else:
+                        return [_keys], [[_values]]
+            t_inf, hosts = _expander(t_inf, hosts)
 
-    # this method is not used anymore. Could be removed.
-    def initiate_infection(self, strain, ):
-        """
-        Function to set the initial seed for an infection.
-        
-        Arguments:
-            - strains: dict, key the name of a strain, value a list of node id's or
-                'random'. If the value is 'random' then one random host is infected.
-                Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
-                    wild type strain.
-        """
-        self.t = 0
-        for name in strain:
-            if name not in self.pathogen.ids.keys():
-                raise self.WrongPathogenError(
-                        "There is no pathogen strain with the name \
-                                <%s>." % name
+            # now the infections are set for the specified strain
+            for i in xrange(len(t_inf)):
+                a_t_inf = t_inf[i]
+                if not self.contact_structure.is_static:
+                    candidate_nodes = \
+                            self.contact_structure.get_nodes_by_lifetime(
+                                a_t_inf
                                 )
-            if type(strain[name]) is not str:
-                for node_id in strain[name]:
-                    self.current_view[node_id] = self.pathogen.ids[name]
-            else:
-                self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
-            self._init_queue()
+                else:
+                    candidate_nodes = range(self.contact_structure.n)
+                if len(candidate_nodes) < 1:
+                    raise self.InitiateInfectionError(
+                            """
+
+ No host at time %s to be infected.
+
+                            """%a_t_inf
+                            )
+                # now for all the infection times we have a set of present
+                # hosts
+                for a_host in hosts[i]:
+                    if a_host == 'random':
+                        the_host = random.choice(
+                                candidate_nodes
+                                )
+                        self.queue.put_nowait(
+                            Event(
+                                a_t_inf, the_host, 
+                                self.pathogen.ids[name], False,
+                                )
+                            )
+                    # if the host is specified by id
+                    elif isinstance(a_host, int):
+                        if a_host not in candidate_nodes:
+                            raise self.InitiateInfectionError(
+                                    """
+                                       The host with ID %s does not exist at 
+                                       the time it should be infected, %s.
+                                    """%(a_host, a_t_inf)
+                                    )
+                        self.queue.put_nowait(
+                                Event(
+                                    a_t_inf, a_host, self.pathogen.ids[name],
+                                    False,
+                                    )
+                                )
+                    # the host must be a specific strain
+                    else:
+                        if a_t_inf != self.t:
+                            raise self.InitiateInfectionError(
+                                    """
+                                        The targeted infection of a host 
+                                        infected with a specific pathogen
+                                        is only possible if the infection 
+                                        time is the current time of the 
+                                        simulation.
+                                        Current time: %s
+                                        Time of infection: %s
+                                    """%(self.t, a_t_inf)
+                            )
+                        # get the ids of of name and hosts
+                        target_id = self.pathogen.ids[a_host]
+                        mut_id = self.pathogen.ids[name]
+                        # check if the target pathogen is present in the
+                        # population, if not raise an error.
+                        potentials = [
+                            filter(
+                                lambda x: x in filter(
+                                    lambda x: self.current_view[x] == target_id,
+                                    range(self.contact_structure.n)
+                                ), candidate_nodes
+                            )
+                        ]
+                        if not potentials:
+                            raise self.InitiateInfectionError(
+                                    """
+                                        There are no host infected with %s at 
+                                        the moment.
+                                    """%a_host
+                                    )
+                        # chose at random one specified infected
+                        # host -> new_mutated.
+                        new_mutated = random.choice(potentials)
+                        # now that we have chose our host to mutate, we need to
+                        # filter the existing event queue for any events
+                        # associated with this host (e.g. this host will not
+                        # infect its neighbours with its previous strain
+                        # anylonger.
+                        # copy the event queue into a list
+                        pending_events = []
+                        while True:
+                            try:
+                                pending_events.append(self.queue.get_nowait())
+                            except Empty:
+                                break
+                        # remove all entries where new_mutated infects plus the
+                        # one where he recovers an recreate the queue
+                        for an_event in pending_events:
+                            # filter out infections where new_mutated is the
+                            # source
+                            if an_event[1][3] != new_mutated:
+                                #do not take the recover event for new_mutated
+                                if an_event[1][0] != new_mutated:  
+                                    self.queue.put_nowait(an_event)
+                        # add infection event of new_mutated with hosts
+                        # make sure that the infection overwrites new_mutated's
+                        # old status (use inf_event = False)
+                        self.queue.put_nowait(
+                                Event(a_t_inf, new_mutated, mut_id, False, )
+                                )
         return 0
 
-    # unused method can be removed (along with self.initiate_infection)
-    def _init_queue(self, ):
-        """
-        Initiate the priority queue according to self.current_view
-        """
-        for node_id in xrange(self.contact_structure.n):
-            if self.current_view[node_id] != -1:
-                self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True,))
-                self.current_view[node_id] = -1
-        return 0
+    # # this method is not used anymore. Could be removed.
+    # def initiate_infection(self, strain, ):
+    #     """
+    #     Function to set the initial seed for an infection.
+    #     
+    #     Arguments:
+    #         - strains: dict, key the name of a strain, value a list of node id's or
+    #             'random'. If the value is 'random' then one random host is infected.
+    #             Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and 10 with the
+    #                 wild type strain.
+    #     """
+    #     self.t = 0
+    #     for name in strain:
+    #         if name not in self.pathogen.ids.keys():
+    #             raise self.WrongPathogenError("There is no pathogen strain with the name <%s>." % name)
+    #         if type(strain[name]) is not str:
+    #             for node_id in strain[name]:
+    #                 self.current_view[node_id] = self.pathogen.ids[name]
+    #         else:
+    #             self.current_view[nrand.randint(0, self.contact_structure.n)] = self.pathogen.ids[name]
+    #         self._init_queue()
+    #     return 0
+
+    # # unused method can be removed (along with self.initiate_infection)
+    # def _init_queue(self, ):
+    #     """
+    #     Initiate the priority queue according to self.current_view
+    #     """
+    #     for node_id in xrange(self.contact_structure.n):
+    #         if self.current_view[node_id] != -1:
+    #             self.queue.put_nowait(Event(self.t, node_id, self.current_view[node_id], True, ))
+    #             self.current_view[node_id] = -1
+    #     return 0
 
     # here below follow several _handle_event... functions each one of these
     # take an event (node id, token id, inf type, source) as an argument
@@ -935,7 +1165,82 @@ class Scenario():
                     self.current_therapy[node_id] = -1
         return 0
 
-    def _handle_event_selection(self, an_event, get_neighbours):  # with only selection
+    # this is the incremental version of the simple event handler. In this
+    # version each change is written to an output file
+    def _handle_event_simple_inc(self, an_event, get_neighbours):
+        """
+        This method handles events in a spreading process without treatment nor
+        selection.
+
+        :param an_event:
+        :param get_neighbours:
+        :param inc_file: opened file to write changes into
+        :return:
+        """
+        node_id, token_id, inf_event, source = an_event
+        # token_id is the id of the pathogen -1 means recovering/dead
+        if token_id == -1:
+            # the Event is recovering
+            old_strain_id = self.current_view[node_id] 
+            # what was the old status of that node.
+            # self.pathogen.rec_types: a list indicating how one recovers
+            # after an infection. The index is the pathogen id and the value is
+            # either 0,1 meaning ether back to susceptible or resistant.
+            self.contact_structure.susceptible[
+                    node_id
+                    ][old_strain_id] = self.pathogen.rec_types[old_strain_id]
+            self.current_view[node_id] = -1 
+            # set the node back to the uninfected state
+            self.current_infection_type[node_id] = -1 
+            # set the infection type back
+            self._count_per_strains[old_strain_id] -= 1 
+            # update the count of number of infected for that strain
+            self._inc_file_o.write(
+                    '%s, %s\n' % (
+                        self.t, self.contact_structure.all_nodes[node_id]
+                        ) 
+                    )
+        else:
+            # the Event is an infection
+            if inf_event and self.current_view[node_id] != -1: 
+                # infection of infected host: do nothing
+                pass 
+                # NOTE: if super-infections are possible, here they would take
+                # place
+            else: 
+                # infection of susceptible host or mutation
+                if nrand.rand() < self.contact_structure.susceptible[node_id][
+                        token_id
+                        ] or not inf_event:
+                    nn, recover_time, inf_times, start_times, stop_times = \
+                            get_neighbours(node_id, token_id)
+                    # : if the node is susceptible (this is all before the 'or
+                    # not') or it is actually not an infection event (a
+                    # mutation in this case).
+                    self._inc_file_o.write(
+                            '%s, %s, %s\n' % (
+                                self.t,
+                                self.contact_structure.all_nodes[node_id],
+                                self.contact_structure.all_nodes[source] if
+                                source is not None else 'seed'
+                                )
+                            )
+                    # This is the method without selection nor treatment, so
+                    # not much to be done here
+                    nn, inf_times = self._cut_times(
+                            recover_time, start_times, stop_times, inf_times, nn
+                            )
+                    self.queue.put_nowait(
+                            Event(self.t + recover_time, node_id, -1, True,)
+                            )
+                    # put the recover event
+                    self._create_neighbour_events(
+                            inf_event, nn, inf_times, node_id, token_id
+                            )
+                    # cerate and add the infection events for the neighbours.
+        return 0
+
+    def _handle_event_selection(self, an_event, get_neighbours):
         """
         This method handles events in a spreading process with selection (mutation + selection) but without treatment.
 
@@ -967,12 +1272,14 @@ class Scenario():
                     # ##
                     if self.selecting[token_id]:
                         selected_strain_id, selection_times = self.pathogen.get_selected(token_id)
-                        if selection_times[selected_strain_id] < recover_time:  # if the mutation is before the recovering
-                            recover_time = selection_times[selected_strain_id]  # adjust the time of "recover" from the current infection.
+                        if selection_times[
+                            selected_strain_id] < recover_time:  #if the mutation is before the recovering
+                            recover_time = selection_times[
+                                selected_strain_id]  # adjust the time of "recover" from the current infection.
                             new_token, new_inf_event = selected_strain_id, False  #set the token and infection event status
                             # for a subsequent event.
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
-                    self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event,))
+                    self.queue.put_nowait(Event(self.t + recover_time, node_id, new_token, new_inf_event, ))
                     # when writing new_token and new_inf_event into the queue, it is either just the recover event
                     # or the mutation event.
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
@@ -1016,11 +1323,11 @@ class Scenario():
                                 # # define a new recover time, that is the delay plus a new recover time under treatment
                                 # print 'rec_1', recover_time
                                 recover_time = delay + (recover_time - delay) * \
-                                                        self.therapy_recover_facts[therapy_id][token_id] ** (-1)
+                                                       self.therapy_recover_facts[therapy_id][token_id] ** (-1)
                                 # print 'rec_2', recover_time
                                 # # define potential new infection times
                                 # new_inf_times = delay + \
-                                #                self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
+                                # self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
                                 # if the infection time is bigger than the delay, take the modified infection time.
                                 # print 'therapy factor', self.therapy_trans_facts[therapy_id][token_id]
                                 # print 'inf_1', inf_times
@@ -1033,7 +1340,7 @@ class Scenario():
                                 # get the time from now until start and stop
                     # ##
                     nn, inf_times = self._cut_times(recover_time, start_times, stop_times, inf_times, nn)
-                    self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True,))
+                    self.queue.put_nowait(Event(self.t + recover_time, node_id, -1, True, ))
                     self._create_neighbour_events(inf_event, nn, inf_times, node_id, token_id)
         return 0
 
@@ -1092,6 +1399,13 @@ class Scenario():
                 This task forces the scenario to provide detailed status reports over the entire simulation.
                 If explicit==1, then on every self.dt the self.get_outcome is written into self.simulation_log.
                 If explicit==2, then on every self.dt the current status is written into self.log (slowdown!).
+            'incremental': string.
+                This task only works if explicit==True. It will write every
+                event to the specified output file. Note that the file is
+                opened in append mode so to be able to write several phases
+                into the same file. Be sure to change the file name for each
+                run as otherwise several runs might be written into the same
+                file. 
             'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
                 This task will shuffle in the specified way the infection status of hosts.
                 'target' must be a list of pathogen names and/or 'susc' for susceptible indicating the group of hosts
@@ -1275,7 +1589,7 @@ class Scenario():
                                     nodes_to_sync[nodes_old_token[i]] = 1
                         if to_mode == 'changed':
                             to_mode = nodes_to_sync
-                    else: 
+                    else:
                         raise ValueError(
                             'The state_change phase is not understood, please either use "relative" or node ids.'
                         )
@@ -1290,7 +1604,7 @@ class Scenario():
             if 'shuffle' in phase:
                 shuffle = phase.pop('shuffle')
                 # write it to the simulation log
-                #print self.current_view
+                # print self.current_view
                 #print self.current_view.count(0), self.current_view.count(1)
                 #print self._count_per_strains
                 try:
@@ -1389,7 +1703,7 @@ class Scenario():
             if with_run:
                 t_start = phase.pop('t_start', None)
                 t_stop = phase.pop('t_stop', None)
-                #counts_length = len(self._counts_over_time)
+                # counts_length = len(self._counts_over_time)
                 # if counts_length < int(t_stop):
                 # self._counts_over_time.extend([None for _ in xrange(int(t_stop) - len(self._counts_over_time))])
                 #    for _ in xrange(max(0, int(t_stop) - counts_length) + 10):  #+10 is just a margin
@@ -1401,6 +1715,11 @@ class Scenario():
                     t_stop=t_stop,
                     **phase
                 )
+                if self._inf_file_o:
+                    self._inf_file_o.close()
+                    # close the file stream to the incremental output file if
+                    # it exists.
+                    self._inf_file_o = None
             self._update_phase_in_sim_log()
             # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
             # Note: There are quite some implications when passing the after_phase_outcome
@@ -1409,19 +1728,26 @@ class Scenario():
             after_phase_outcome = self.get_outcome
             # To Do: This might overwrite an existing entry (if self.t does not change)
             self.log[round(self.t, self._log_time_rounding)] = after_phase_outcome
+            # TODO: was an option
+            #self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
             try:
                 self.outcome[self.t].append(after_phase_outcome)
             except (KeyError, AttributeError):
+
                 self.outcome[self.t] = [after_phase_outcome]
-            # if 'assert_survival' in phase:
-            #    to_survive = phase.pop('assert_survival')
-            #    break_here = False
-            #    for strain_name in to_survive:
-            #        if strain_name not in self.outcome['logs'][self.t]['abundance'].keys():
-            #            break_here = True
-            #            print '%s got extinct.'%(strain_name)
-            #    if break_here:
-            #        break
+                #TODO: alternative
+                # self.outcome[self.t] = [self.get_outcome]
+                
+                
+                # if 'assert_survival' in phase:
+                # to_survive = phase.pop('assert_survival')
+                #    break_here = False
+                #    for strain_name in to_survive:
+                #        if strain_name not in self.outcome['logs'][self.t]['abundance'].keys():
+                #            break_here = True
+                #            print '%s got extinct.'%(strain_name)
+                #    if break_here:
+                #        break
         return 0
 
     def _run(self,
@@ -1430,7 +1756,7 @@ class Scenario():
              with_treatment=False,
              halt_condition=False,
              assert_survival=False,
-             t_start = None,
+             t_start=None,
              **params
     ):
         """
@@ -1459,11 +1785,21 @@ class Scenario():
         # )
         # determine if the network is static or dynamic and set the appropriate methods.
         if self.contact_structure.is_static:
-            get_neighbours = self._get_neighbours_static
+            if self.single_transmission:
+                get_neighbours = self._get_neighbours_static_single
+            else:
+                get_neighbours = self._get_neighbours_static
         else:
-            get_neighbours = self._get_neighbours_dynamic
+            if self.single_transmission:
+                get_neighbours = self._get_neighbours_dynamic_single
+            else:
+                get_neighbours = self._get_neighbours_dynamic
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
-        event_handler = self._handle_event_simple
+        if 'incremental' in params:
+            event_handler = self._handle_event_simple_inc
+            self._inc_file_o = open(params['incremental'], 'a')
+        else:
+            event_handler = self._handle_event_simple
         self.treating = []
         self.selecting = []
         # if no selection parameters where provided when initializing the scenario no selection will be attempted no
@@ -1562,6 +1898,8 @@ class Scenario():
                     self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                     # elif logger_mode == 2:
                     #    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    #TODO: was alternative
+                    # self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                     break
             """
             while self.t < t_stop and not done:
@@ -1619,6 +1957,7 @@ class Scenario():
                 except Empty:
                     # we don't write into to log as we'll write into self.outcome
                     # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    #TODO: Probably something missing
                     break
         # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
@@ -1648,7 +1987,7 @@ class Scenario():
                             rel_id_stop_cond[_id] = (rel_cond[name][0], self.pathogen.ids.values())
                             # if building up criterion is met already, stop the phase
                             if self._count_per_strains[_id] >= rel_id_stop_cond[_id][0] * sum(
-                                [self._count_per_strains[path_id] for path_id in self.pathogen.ids.values()]
+                                    [self._count_per_strains[path_id] for path_id in self.pathogen.ids.values()]
                             ):
                                 return 0
                         else:
@@ -1686,11 +2025,12 @@ class Scenario():
                                 self._count_per_strains[strain_id] for strain_id in self.pathogen.ids.values()
                             ) if type(condition) is list else self.contact_network.n
                         )
-                        # if self.current_view.count(s_id) >= rel_id_stop_cond[s_id][0] * ref_val:
                         if self._count_per_strains[s_id] >= rel_id_stop_cond[s_id][0] * ref_val:
+                        #TODO: was alternative
+                        # if self.current_view.count(s_id) >= rel_id_stop_cond[s_id][0] * ref_val:
                             print 'reached fraction', self._count_per_strains, [
-                                    self.current_view.count(i) for i in self.pathogen.ids.values()
-                                ]
+                                self.current_view.count(i) for i in self.pathogen.ids.values()
+                            ]
                             # if we stop, we need to provide a new starting time for the next phase
                             self._phase_passon = {'t_start': self.t}
                             return 1
@@ -1716,6 +2056,7 @@ class Scenario():
                             rel_id_stop_cond[_id][0] * self._count_per_strains[rel_id_stop_cond[_id][1]]
                             for _id in rel_id_stop_cond
                     ):
+
                         self._phase_passon = {'t_start': self.t}
                         return 1
                     if any(self._count_per_strains[_id] >= abs_id_stop_cond[_id] for _id in abs_id_stop_cond):
@@ -1735,14 +2076,23 @@ class Scenario():
                                 self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                             elif logger_mode == 2:
                                 self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                            t_next_bin += dt
+
+
+                            self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                            while self.t >= t_next_bin:
+                                t_next_bin += dt
+                            #TODO: alt
+                            #self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                         if test_cond(self):
                             return 0
                     except Empty:
+
                         if logger_mode == 1:
                             self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                         elif logger_mode == 2:
                             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                        #TODO: alternative
+                        #self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                         break
             else:
                 while self.t < t_stop:
@@ -1755,6 +2105,8 @@ class Scenario():
                             return 0
                     except Empty:
                         self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                        #TODO: alternative
+                        #self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                         break
         # if there was neither a halt condition nor a building_up, this part will conduct the simulation
         else:
@@ -1770,13 +2122,16 @@ class Scenario():
                                 self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                             elif logger_mode == 2:
                                 self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                            t_next_bin += dt
+                            while self.t >= t_next_bin:
+                                t_next_bin += dt
                             # print '\tShould write: Current time: %s, next_check %s' % (self.t, t_next_bin)
                     except Empty:
                         if logger_mode == 1:
                             self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
                         elif logger_mode == 2:
                             self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                            #TODO: alternative
+                            #self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                         break
             else:
                 while self.t < t_stop:
@@ -1787,6 +2142,8 @@ class Scenario():
                     except Empty:
                         # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
                         self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                        #TODO: alternative
+                        # self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
                         break
         # print 'treatment', with_treatment
         return 0
@@ -2073,7 +2430,7 @@ class Scenario():
         degree_count = {}  # just a count for each degree
         degree_spec_acquire_count = {}  # Keys are the strain names, values are dict{degree: mutant count}
         degrees = []
-        #degrees = {}
+        # degrees = {}
         for node in xrange(self.contact_structure.n):
             degrees.append(
                 len(
@@ -2137,7 +2494,20 @@ class Scenario():
             self.simulation_log['phases'][self.t]['treatment'] = self.treatment.info
         self.simulation_log['phases'][self.t]['acquire_type'] = copy(self.current_infection_type)
         return 0
+
     # ToDo: WRITE A METHOD THAT RENDERS SELF.LOG AND SELF.SIMULATION_LOG MORE READABLE
+
+    @property
+    def get_current_view(self):
+        if not self.contact_structure.has_dynamic_nodes or \
+                (self.contact_structure.has_dynamic_nodes and self._ignore_dyn_nodes_in_log):
+            return copy(self.current_view)   # default behaviour
+        else:
+            # Set all nodes that exceeded their lifespan (given by nodes_end) to a special state -2
+            new_current_view = map(
+                lambda i: self.current_view[i] if self.contact_structure.nodes_end[i] > self.t else -2,
+                xrange(len(self.current_view)))
+            return copy(new_current_view)
 
     # to transform the priority queue holding the upcoming events into a pickleabel list
     def __getstate__(self):
