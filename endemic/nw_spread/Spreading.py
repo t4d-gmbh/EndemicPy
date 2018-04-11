@@ -50,8 +50,10 @@ class Scenario():
                 - default_susceptibility: Value [0,1] to be used for any missing susceptibility.
                     Default=1.
                 - single_transmission: Boolean (default: False) indicating 
-                    whether on contact between an carrying and a susceptible 
-                    individual several transmission events should be drawn.
+                    whether on contact between a carrying and a susceptible 
+                    individual several transmission events should be possible or not.
+                    Note: Traditional SIS, SIR or similar processes are not 
+                    restrained to a single transmission per contact. 
                     
         """
         # this will store self.current_view at various times
