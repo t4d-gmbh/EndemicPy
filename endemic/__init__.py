@@ -1,5 +1,5 @@
 __title__ = 'endemic'
-__version__ = '0.2.1'
+__version__ = '0.4.1'
 #__build__ =
 __author__ = 'Jonas I Liechti'
 __license__ = 'Apache 2.0'

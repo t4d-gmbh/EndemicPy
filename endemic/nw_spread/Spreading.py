@@ -49,6 +49,12 @@ class Scenario():
                 - dt: the time step at which the current status should be recorded.
                 - default_susceptibility: Value [0,1] to be used for any missing susceptibility.
                     Default=1.
+                - single_transmission: Boolean (default: False) indicating 
+                    whether on contact between a carrying and a susceptible 
+                    individual several transmission events should be possible or not.
+                    Note: Traditional SIS, SIR or similar processes are not 
+                    restrained to a single transmission per contact. 
+                    
         """
         # this will store self.current_view at various times
         # Note: this will be replaced with self.outcome so feel free to ignore this
@@ -71,6 +77,8 @@ class Scenario():
         #init of optional and internal arguments
         self._default_susceptibility = 1  # by default hosts are susceptible
         self._default_drug_selection_factor = 1  # by default drugs do not increase mutation/selection rates
+        # should a contact lead to multiple transmission events:
+        self.single_transmission = params.get('single_transmission', False)
         # holds the number of infected individuals for each strain
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         # Note: used to contain the status of the host population overt time - will be redefined and is not in use.
@@ -188,33 +196,131 @@ class Scenario():
 
     def _get_neighbours_static(self, node_id, token_id):
         """
-        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
-            with a static network
-        :param node_id:
-        :param token_id:
-        :return:
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a static network
+
+        Parameter:
+        ----------
+        :param node_id: the index (id) of the node that is being infected.
+        :type node_id: int
+        :param token_id: the identifier for the token the node gets.
+        :type token_id: int
+
+        :return: tuple with a list of nearest neighbours, the recover time,
+            the infection times for each neighbour, the starting time of the
+            interactions (here this is 0 as we have a static network) and the
+            stop times of each interaction (here this is the recover time
+            of the infected node as we are in the static case)
+
+        """
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
+        nn = []
+        inf_times = []
+        t_inf = 0
+        for n_neigh in self.contact_structure.nn[node_id]:
+            t_inf = self.pathogen.trans_dists[token_id].get_val()
+            while t_inf <= recover_time:
+                nn.append(n_neigh)
+                inf_times.append(t_inf)
+                t_inf += self.pathogen.trans_dists[token_id].get_val()
+        # the last 2 returned arguments are the start and stop condition for
+        # the neighbours, which simply boil down to self.t and the recover_time
+        # in the static case
+        return array(nn), recover_time, array(inf_times), 0., recover_time
+
+    def _get_neighbours_static_single(self, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a static network
+        and if we constrain a contact between a carrying and a susceptible 
+        individual to only ever transmit once.
+        Note: You should have a particular reason why to use this function,
+            if you don't use the _get_neighbours_static function. You can do so
+            by simply not specifying the single_transmission parameter when 
+            initializing a scenario.
+
+        Parameter:
+        ----------
+        :param node_id: the index (id) of the node that is being infected.
+        :type node_id: int
+        :param token_id: the identifier for the token the node gets.
+        :type token_id: int
+
+        :return: tuple with a list of nearest neighbours, the recover time,
+            the infection times for each neighbour, the starting time of the
+            interactions (here this is 0 as we have a static network) and the
+            stop times of each interaction (here this is the recover time
+            of the infected node as we are in the static case)
+
         """
         nn = copy(self.contact_structure.nn[node_id])
         recover_time = self.pathogen.rec_dists[token_id].get_val()
-        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
-        #nn = nn[inf_times < recover_time]
-        #inf_times = inf_times[inf_times < recover_time]
-        # the last 2 returned arguments are the start and stop condition for the neighbours, which simply boil down to
-        # self.t and the recover_time in the static case
+        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
+            else array([])
         return nn, recover_time, inf_times, 0., recover_time
 
     def _get_neighbours_dynamic(self, node_id, token_id):
         """
-        This method will be used in any of the (further below defined) event_handler_... methods if we are dealing
-            with a dynamic network
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a dynamic network
         :param node_id:
         :param token_id:
         :return:
         """
         recover_time = self.pathogen.rec_dists[token_id].get_val()
-        nn, start_times, stop_times = self.contact_structure.get_events(node_id, self.t, recover_time)
+        # returns all relevant connections: node_ids, start_times, stop_times
+        diff_nn, _start_times, _stop_times = self.contact_structure.get_events(
+                node_id,
+                self.t,
+                recover_time
+                )
+        # cut the start_times with the current time:
+        _start_times = where(
+            _start_times >= self.t,
+            _start_times - self.t,
+            0.0
+        )
+        _stop_times -= self.t
+        nn = []
+        inf_times = []
+        start_times = []
+        stop_times = []
+        # TODO: This is list op on np array, not ideal!
+        for i in xrange(len(diff_nn)):
+            stop_time = _stop_times[i]
+            start_time = _start_times[i]
+            t_inf = self.pathogen.trans_dists[token_id].get_val()
+            while t_inf + start_time <= stop_time:
+                nn.append(diff_nn[i])
+                inf_times.append(t_inf)
+                start_times.append(start_time)
+                stop_times.append(stop_time)
+                t_inf += self.pathogen.trans_dists[token_id].get_val()
+        return array(
+                nn
+                ), recover_time, array(
+                        inf_times
+                        ), array(
+                                start_times
+                                ), array(
+                                        stop_times
+                                        )
+
+    def _get_neighbours_dynamic_single(self, node_id, token_id):
+        """
+        This method will be used in any of the (further below defined)
+        event_handler_... methods if we are dealing with a dynamic network
+        :param node_id:
+        :param token_id:
+        :return:
+        """
+        recover_time = self.pathogen.rec_dists[token_id].get_val()
+        nn, start_times, stop_times = self.contact_structure.get_events(
+                node_id, self.t, recover_time
+                )
         # this should return id_list, start_array, stop_array
-        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size else array([])
+        inf_times = self.pathogen.trans_dists[token_id].v_get(nn) if nn.size \
+            else array([])
         # cut the start_times with the current time:
         start_times = where(
             start_times >= self.t,
@@ -223,7 +329,6 @@ class Scenario():
         )
         stop_times -= self.t
         return nn, recover_time, inf_times, start_times, stop_times
-
 
     # to do: attributes are defined in __init__ so any change in their definitions has to be passed on to here
     # ideally reset should be called in __init__ to avoid any code duplication.
@@ -246,7 +351,8 @@ class Scenario():
             'param_alternation': {}
         }
         self.outcome = {}
-        self.t = 0
+        self.t = self.contact_structure.t_start if not \
+                self.contact_structure.is_static else 0
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
         self._counts_over_time = zeros((1, self.pathogen.n))
         self.current_view = [-1 for _ in xrange(self.contact_structure.n)]  # Indicates the current status of the hosts
@@ -647,8 +753,8 @@ class Scenario():
                         self.t, self.contact_structure.all_nodes[node_id]
                         ) 
                     )
-        else: 
-            #the Event is an infection
+        else:
+            # the Event is an infection
             if inf_event and self.current_view[node_id] != -1: 
                 # infection of infected host: do nothing
                 pass 
@@ -1097,7 +1203,7 @@ class Scenario():
              with_treatment=False,
              halt_condition=False,
              assert_survival=False,
-             t_start = None,
+             t_start=None,
              **params
     ):
         """
@@ -1126,9 +1232,15 @@ class Scenario():
         #)
         # determine if the network is static or dynamic and set the appropriate methods.
         if self.contact_structure.is_static:
-            get_neighbours = self._get_neighbours_static
+            if self.single_transmission:
+                get_neighbours = self._get_neighbours_static_single
+            else:
+                get_neighbours = self._get_neighbours_static
         else:
-            get_neighbours = self._get_neighbours_dynamic
+            if self.single_transmission:
+                get_neighbours = self._get_neighbours_dynamic_single
+            else:
+                get_neighbours = self._get_neighbours_dynamic
         # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
         if 'incremental' in params:
             event_handler = self._handle_event_simple_inc

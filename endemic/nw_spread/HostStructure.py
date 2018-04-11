@@ -164,12 +164,18 @@ class ContactSequence(ContactStructure):
         self.node2s = temporal_graph.node2s
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
-        ContactStructure.__init__(self, from_object=temporal_graph, is_static=False)
+        ContactStructure.__init__(
+                self, from_object=temporal_graph, is_static=False
+                )
 
     def get_events(self, node_id, start_time, delta_t):
         """
-        Returns a view of the start times and stop times as well as the involved nodes of all event vor a given
-        node within a time range (start_time, start_time + delta_t)
+        Returns a view of the start times and stop times as well as the
+        involved nodes of all event for a given node within a time range
+        (start_time, start_time + delta_t)
+
+        Parameter:
+        ----------
         :param node_id:
         :param start_time:
         :param delta_t:
@@ -187,13 +193,13 @@ class ContactSequence(ContactStructure):
         )
         nn1 = self.node1s.view()[the_filter]
         nn2 = self.node2s.view()[the_filter]
-
         nn = np.where(
             node_id != nn1,
             nn1,
             nn2
         )
-        return nn, self.starts.view()[the_filter], self.stops.view()[the_filter]
+        return nn, self.starts.view()[the_filter], \
+            self.stops.view()[the_filter]
 
 
 class Host():
