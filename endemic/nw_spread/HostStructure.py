@@ -177,7 +177,7 @@ class ContactSequence(ContactStructure):
 
     def get_events(self, node_id, start_time, delta_t):
         """
-        Returns a view of the start times and stop times as well as the involved nodes of all event for a given
+        Returns a view of the start times and stop times as well as the involved nodes of all event vor a given
         node within a time range (start_time, start_time + delta_t)
         :param node_id:
         :param start_time:
@@ -223,19 +223,16 @@ class ContactSequence(ContactStructure):
         
         Parameters
         ----------
-        source_node : int
-            the source node for the search        
-        start_time : float 
-            the starting time of the search
-        delta_t: float
-            stop_time = `start_time` + `delta_t`        
+        source_node
+        start_time: the starting time of the search
+        delta_t: stop_time = start_time + delta_t        
         
         Returns
         -------
-        distances : list of ints
-            distances from the source node for each node (-1 means that the node is unreachable)
-        delays : list of floats
-            time delays between each node and the source node
+        distances, delays
+        where distances is an array holding the distance from the source node for each node
+        (-1 means that the node is unreachable),
+        delays holds the time delay between each node and the source node
         
         Call
         ----
