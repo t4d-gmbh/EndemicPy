@@ -1,4 +1,8 @@
+<<<<<<< endemic/nw_spread/RateDistribution.py
 from numpy import vectorize, array, float64
+=======
+from numpy import vectorize, random, apply_along_axis
+>>>>>>> endemic/nw_spread/RateDistribution.py
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
@@ -21,6 +25,10 @@ def set_default(parameter):
                 )
     sys.stdout.flush()
     return DEFAULT_VALUES[parameter]
+
+
+def no_mut(dummy, length):
+    return [MAX_LIM] * length
 
 
 def get_value(kwargs, parameter):
@@ -53,6 +61,7 @@ def inf_time(**kwargs):
         DEFAULT_VALUES['loc']
         )
 class Distro(object):
+
     """
         This class holds a queue of random times drawn from a given
         distribution with a specified scale.
@@ -114,6 +123,7 @@ class Distro(object):
 
     def fillup(self):
         self.v_put(abs(self.draw_fct(**self._dist_params)))
+
         return 0
 
     def get_val(self, a=None):
@@ -156,4 +166,5 @@ class Distro(object):
             # this is specific to the queue, thus "reinit" here
             self.v_put = vectorize(self.queue.put_nowait)
             self.draw_fct = inf_time
+
             self.fillup()

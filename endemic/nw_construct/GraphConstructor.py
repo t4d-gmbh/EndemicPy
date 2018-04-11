@@ -529,7 +529,7 @@ class Graph(_Graph):
         self.has_dynamic_nodes = False
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
-        self.permitted_types = allowed_dists + ["l_partition", 'full', 'PA']
+        self.permitted_types = allowed_dists + ["l_partition", 'full']
         self.is_directed = False
         # to do: pass usefull info in here.
         self._info = {}
@@ -594,9 +594,6 @@ class Graph(_Graph):
             #is needed since it should not run through the rest in this case.
         elif self.nw_name == 'full':
             self.fully_connected(**distribution)
-            return 0
-        elif self.nw_name == 'PA':
-            self.pref_attach_network(**distribution)
             return 0
         try:
             if distribution['scale'] == 0:
@@ -843,75 +840,6 @@ class Graph(_Graph):
         self._convert_to_array()
         return 0
 
-    def _random_subset(self,seq,m):
-        """ Return m unique elements from seq.
-        
-        This differs from random.sample which can return repeated
-        elements if seq holds repeated elements.
-        """
-        targets=set()
-        while len(targets)<m:
-            x=random.choice(seq)
-            targets.add(x)
-        return targets
-        
-        
-    def pref_attach_network(self, c, a):
-        """
-        Price's Preferential Attachement algorithm
-        
-
-        """
-        
-        self.nn = [[] for i in xrange(self.n)]
-        
-#        # start with a small fully connected graph
-#        for node in xrange(int(c)):
-#            nns = range(int(c))
-#            nns.remove(node)
-#            self.nn[node].extend(nns)
- 
-        # start with a small graph of 5 nodes with just one link between each following nodes
-        for node in xrange(int(c)-1):
-            self.nn[node].append(node+1)
-            self.nn[node+1].append(node)
-        
-        # keep a record of the directed links (in-links)
-        nn_in = []
-        nn_in.extend(xrange(int(c)-1))
-            
-        # then add other nodes with preferential attachement
-        node = int(c)
-        while node < self.n:
-            if random.sample < c/float(c+a):
-                # attach with probability proportional to the in-degree
-                new_neighbor = random.choice(nn_in)
-            else:
-                # attach randomly
-                new_neighbor = random.choice(xrange(node))
-                
-            # add new link to the count of in directed links
-            nn_in.append(new_neighbor)
-            
-#        new_neighbor = self._random_subset(list(chain.from_iterable(self.nn)), int(c))
-        
-            # create new links
-#            for new_node in new_neighbor:                
-#                self.nn[new_node].append(node)
-#            self.nn[node].extend(new_neighbor)
-
-             # make new connections
-            self.nn[new_neighbor].append(node)         
-            self.nn[node].append(new_neighbor)
-            
-            node += 1
-                
-        self.degrees = [len(nn) for nn in self.nn]    
-        self._convert_to_array()
-        self.nn_in = nn_in
-    
-
-            
     def _convert_to_array(self):
         for i in xrange(len(self.nn)):
             self.nn[i] = array(self.nn[i])

@@ -1,6 +1,6 @@
 __author__ = 'Jonas I Liechti'
 import numpy as np
-from Queue import Queue
+
 
 class ContactStructure():
     class HostOrderError(Exception):
