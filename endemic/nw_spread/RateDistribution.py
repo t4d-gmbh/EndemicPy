@@ -1,8 +1,4 @@
-<<<<<<< endemic/nw_spread/RateDistribution.py
-from numpy import vectorize, array, float64
-=======
-from numpy import vectorize, random, apply_along_axis
->>>>>>> endemic/nw_spread/RateDistribution.py
+from numpy import vectorize, array, float64, random, apply_along_axis
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
@@ -112,6 +108,7 @@ class Distro(object):
         # handle the special case of scale == 0
         if not self._dist_params['scale']:
             self.draw_fct = inf_time
+        #TODO: Honestly don't know where self.size is defined...
         self.queue = SimpleQueue(maxsize=self.size + 1)
         self.v_put = vectorize(self.queue.put_nowait)
         # fill the queue
@@ -135,6 +132,26 @@ class Distro(object):
         except Empty:
             self.fillup()
             return self.queue.get_nowait()
+
+    def get_times(limit):
+        """
+        Return an array of events happening before the limit.
+        
+        Parameters:
+        -----------
+            :param limit: upper limit for the event times sequence. Only events
+                happening before the limit will be returned.
+            :type limit: float, int
+        """
+        # draw form the dist until we reach the limit time.    
+        pass
+    
+        
+    #def v_get(self, an_array):
+    #    #return map(self.get_val, xrange(an_array.size))
+    #    return apply_along_axis(self.get_val, 0, an_array)
+    # to transform the priority queue holding the upcoming events into a pickle-abel list
+    
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -161,10 +178,16 @@ class Distro(object):
         self.__dict__.update(d)
         self.__dict__['v_put'] = vectorize(self.queue.put_nowait)
         self.__dict__['v_get'] = vectorize(self.get_val)
-        if not self.scale:
-            self.queue = SimpleQueue(maxsize=self.size + 1)
-            # this is specific to the queue, thus "reinit" here
-            self.v_put = vectorize(self.queue.put_nowait)
-            self.draw_fct = inf_time
+        #TODO: Not sure which one is right
+        if self.scale is None:
+            self.scale = 0
+            self.queue = SimpleQueue(maxsize=self.pre + 1)
+            self.v_put = vectorize(self.queue.put_nowait)  # this is specific to the queue, thus reinit here
+            self.draw_fct = no_mut
+        #if not self.scale:
+        #    self.queue = SimpleQueue(maxsize=self.size + 1)
+        #    # this is specific to the queue, thus "reinit" here
+        #    self.v_put = vectorize(self.queue.put_nowait)
+        #    self.draw_fct = inf_time
 
             self.fillup()

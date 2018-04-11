@@ -7,17 +7,20 @@ from copy import copy
 
 #This is the set of possible distributions for the degree.
 Distribution = {
-        'poisson': random.poisson, 'normal': random.normal,
-        'binomial': random.binomial, 'exponential': random.exponential,
-        'geometric': random.geometric, 'gamma': random.gamma,
-        'power': random.power, 'weibull': random.weibull
-    }
+    'poisson': random.poisson, 'normal': random.normal,
+    'binomial': random.binomial, 'exponential': random.exponential,
+    'geometric': random.geometric, 'gamma': random.gamma,
+    'power': random.power, 'weibull': random.weibull,
+    'negative_binomial': random.negative_binomial
+}
+
 allowed_dists = Distribution.keys()
 
 
 class InvalidArgumentError(Exception):
     def __init__(self, msg):
         self.msg = msg
+
 
 class Node():
     all_ = list()
@@ -137,8 +140,8 @@ class _Graph():
                 self.degrees.append(len(list(set(nn[i]))))
             del nn
         self.n = None
-        if n is not None:
-            self.n = n
+        if N is not None:
+            self.n = N
         if np.size(self._nodes):
             self.n = len(self._nodes)
         self.info = {}  # dict containing some info
@@ -341,6 +344,7 @@ class TemporalGraph(_Graph):
                             node2_tag: Name of the column with the second
                                 participant
                             delimiter: The string delimiting the columns
+
                                 (default: 'TAB'). You can use the actual
                                 string e.g. '\\t' for 'TAB" or choose from:
                                 ('TAB', 'space')
@@ -356,6 +360,7 @@ class TemporalGraph(_Graph):
                         Optional:
                             permitted_values: Default = {}
                                 If 'start_tag' is given, only interactions with
+
                                 a start_tag bigger than this value
                                     will be considered.
 
@@ -411,7 +416,6 @@ class TemporalGraph(_Graph):
             data = np.genfromtxt(
                 f,
                 delimiter=self._file_delimiter,
-                # not sure about that, if for a, b, c = ... syntax
                 unpack=False, 
                 autostrip=True,
                 comments='#',
@@ -511,7 +515,7 @@ class TemporalGraph(_Graph):
 
 
 class Graph(_Graph):
-    def __init__(self, n=None, method='stub', **distribution):
+    def __init__(self, N=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
             - network_type: specify the type of network that should be
@@ -519,8 +523,9 @@ class Graph(_Graph):
                 It can either be the name of a distribution or of a certain
                     network type.
 
-            ['l_partition', 'poisson', 'normal', 'binomial', 'exponential',
-            'geometric', 'gamma', 'power', 'weibull']
+            ['uniform', 'full', 'l_partition', 'poisson', 'normal', 'binomial',
+                'exponential', 'geometric', 'gamma', 'power', 'weibull']
+
             For specific parameters of the distributions, see:
                 http://docs.scipy.org/doc/numpy/reference/routines.random.html
 
@@ -537,19 +542,21 @@ class Graph(_Graph):
         self.has_dynamic_nodes = False
         self._rewiring_attempts = 100000
         self._stub_attempts = 100000
-        self.permitted_types = allowed_dists + ["l_partition", 'full']
+        self.permitted_types = allowed_dists + [
+                "l_partition", 'full', 'uniform'
+                ]
         self.is_directed = False
         # to do: pass usefull info in here.
         self._info = {}
         #for now only undirected networks
-        if n is not None:
-            self.n = n
+        if N is not None:
+            self.n = N
             if method in ['proba', 'stub']:
                 self.method = method
             else:
                 raise ValueError(
-                        method + ' is not a permitted method! Chose either '\
-                                '"proba" or "stub"'
+                        method + ' is not a permitted method! Chose either \
+                                "proba" or "stub"'
                                 )
             try:
                 self.nw_name = distribution.pop('network_type')
@@ -563,8 +570,9 @@ class Graph(_Graph):
                 if self.nw_name not in self.permitted_types:
                     raise ValueError(
                         "The specified network type \"%s\" is not permitted. \
-                        Please chose from " % self.nw_name + '[' + \
-                        ', '.join(self.permitted_types) + ']')
+                        Please chose from " % self.nw_name + '[' + ', '.join(
+                            self.permitted_types) + ']'
+                        )
                 self.distribution = distribution
                 self._create_graph(**self.distribution)
 
@@ -594,8 +602,8 @@ class Graph(_Graph):
             try:
                 self.l_partition_network(**distribution)
             except TypeError, msg:
-                print 'OH, something went wrong! \n Here, have a description '\
-                        'of the distribution:'
+                print 'OH, something went wrong! \n Here, have a description \
+                        of the distribution:'
                 print self.l_partition_network.__doc__
                 raise TypeError(msg)
             return 0
@@ -603,14 +611,15 @@ class Graph(_Graph):
         elif self.nw_name == 'full':
             self.fully_connected(**distribution)
             return 0
-        try:
-            if distribution['scale'] == 0:
-                degrees = [distribution['shape'] for _ in xrange(self.n)]
-            else:
-                degrees = []
-                for _ in xrange(self.n):
-                    degrees.append(Distribution[self.nw_name](**distribution))
-        except KeyError:
+        elif self.nw_name == 'uniform':
+            try:
+                degrees = [distribution['degree'] for _ in xrange(self.n)]
+            except KeyError, msg:
+                print 'You need to provide the argument degree if you \
+                        want to create a network with uniform degree!'
+                raise KeyError(msg)
+        else:
+            print distribution
             try:
                 degrees = []
                 for _ in xrange(self.n):
@@ -620,6 +629,16 @@ class Graph(_Graph):
                         'of the distribution:'
                 print Distribution[self.nw_name].__doc__
                 raise TypeError(msg)
+        #except KeyError:
+        #    try:
+        #        degrees = []
+        #        for _ in xrange(self.n):
+        #            degrees.append(Distribution[self.nw_name](**distribution))
+        #    except TypeError, msg:
+        #        print 'OH, something went wrong! \n Here, have a description \
+        #            of the distribution:'
+        #        print Distribution[self.nw_name].__doc__
+        #        raise TypeError(msg)
         self._make_graph(degrees)
         return 0
 
@@ -631,9 +650,10 @@ class Graph(_Graph):
         """
             This function constructs the actual network.
             Depending on the construction method that has been chosen the
-            network is either generated by a probabilistic method (if
-            self.method = 'proba') or by a edge wiring method
-            (self.method = 'stubs').
+
+                network is either generated by a probabilistic method
+                (if self.method = 'proba') or by a edge wiring method
+                (self.method = 'stubs').
         """
         if self.method == 'proba':
             two_k = float(sum(degrees))
@@ -650,10 +670,10 @@ class Graph(_Graph):
             return 0
         else:
             if sum(degrees) > self.n * (self.n - 1):
-                print 'WARNING: according to the chose degree sequence the '\
-                        'network should be more than fully connected'
-                print '\t the degree sequence is corrected such that each '\
-                        'node has at most n-1 neighbours.'
+                print 'WARNING: according to the chose degree sequence the \
+                        network should be more than fully connected'
+                print '\t the degree sequence is corrected such that each node \
+                        has at most n-1 neighbours.'
             self.degrees = map(
                     lambda x: min(self.n - 1, int(round(x))), degrees
                     )
@@ -761,7 +781,8 @@ class Graph(_Graph):
     def info(self):
         """
             Returns the set of parameters used to create the network.
-        :return: Dictionary with the network type and the set of parameters used to generate the network
+        :return: Dictionary with the network type and the set of parameters
+            used to generate the network
         """
         return {
             'n': self.n,
@@ -792,7 +813,8 @@ class Graph(_Graph):
                 Note: if n is not a multiple of l,
                     some partitions will be smaller/bigger
                     than others.
-        :param kwargs: Set of possible arguments to define an l-partition network:
+        :param kwargs: Set of possible arguments to define an l-partition
+            network:
                 Possible arguments are:
                     - avg_degree: give the average degree
                 - density_ratio: the edge density ratio between
@@ -807,8 +829,16 @@ class Graph(_Graph):
             p_in = kwargs['p_in']
             p_out = kwargs['p_out']
         elif 'avg_degree' in kwargs and 'density_ratio' in kwargs:
-            p_in = kwargs['avg_degree'] / float((self.n / float(l) - 1) * (1 + 1 / float(kwargs['density_ratio'])))
-            p_out = kwargs['avg_degree'] / float((l - 1) * self.n / float(l) * (1 + kwargs['density_ratio']))
+            p_in = kwargs['avg_degree'] / float(
+                    (
+                        self.n / float(l) - 1
+                        ) * (
+                            1 + 1 / float(kwargs['density_ratio'])
+                            )
+                    )
+            p_out = kwargs['avg_degree'] / float(
+                    (l - 1) * self.n / float(l) * (1 + kwargs['density_ratio'])
+                    )
             if max(p_in, p_out) > 1:
                 raise ValueError(
                     """The desire ratio along with the given
@@ -817,7 +847,9 @@ class Graph(_Graph):
                     be more than fully connected."""
                 )
         else:
-            raise TypeError('Invalid arguments for the l_partition_network function')
+            raise TypeError(
+                    'Invalid arguments for the l_partition_network function'
+                    )
         nodes = xrange(self.n)
         partition_size = int(self.n // float(l))
         part_sizes = [partition_size for i in xrange(l)]
@@ -876,7 +908,8 @@ class Graph(_Graph):
     def new_realisation(self, **distribution):
         """
             Creates a new realisation of the chosen graph type.
-            If no arguments are specified previously defined parameters are used.
+            If no arguments are specified previously defined parameters are
+                used.
         """
         if distribution:
             for key in distribution:
@@ -892,7 +925,9 @@ class Graph(_Graph):
         for node in xrange(self.n):
             for nn in self.nn[node]:
                 edge = ' '.join([str(node), str(nn)]) + '\n'
-                if edge not in edgelist and ' '.join([str(nn), str(node)]) + '\n' not in edgelist:
+                if edge not in edgelist and ' '.join(
+                        [str(nn), str(node)]
+                        ) + '\n' not in edgelist:
                     edgelist.append(edge)
         return edgelist
 
@@ -907,11 +942,15 @@ class Graph(_Graph):
             - fileformat: Default is None. If no format is set, the format is 
                 inferred from the filename.
                 Permitted formats are:
-                    *.txt/*.edges: Edgelist. Each column is a pair of integers separated by whitespace
-                    *.ncol: Large Graph Layout Format. Each column is a pair of node names and 
-                        an optional weight(pos/neg integer), each separated by whitespace
-                    *.lgl: Large Graph Layout (alternative format). Adjacency style type of list (so a list of lists)
-                        indicating an source node with # followed by a list of target nodes and optional weights.
+                    *.txt/*.edges: Edgelist. Each column is a pair of integers
+                        separated by whitespace
+                    *.ncol: Large Graph Layout Format. Each column is a pair of
+                        node names and an optional weight(pos/neg integer),
+                        each separated by whitespace
+                    *.lgl: Large Graph Layout (alternative format). Adjacency
+                        style type of list (so a list of lists) indicating an
+                        source node with # followed by a list of target nodes
+                        and optional weights.
                         Eg.
                         #node1
                         node2 -1
@@ -923,7 +962,10 @@ class Graph(_Graph):
         if '.' in filename:
             [filename, fileformat] = filename.split('.')
         if fileformat not in ok_formats:
-            raise IOError('The chosen format <%s> is not permitted. See docstring for info.' % fileformat)
+            raise IOError(
+                    'The chosen format <%s> is not permitted. See docstring \
+                            for info.' % fileformat
+                            )
         with open(filename + '.' + fileformat, 'w') as the_file:
             if fileformat == 'lgl':
                 for node in xrange(self.n):
@@ -947,14 +989,17 @@ class Graph(_Graph):
         ok_formats = ['txt', 'ncol', 'lgl', 'edges']
         extension = filename.split('.')[-1]
         if extension not in ok_formats:
-            raise IOError('The file is of an unsupported format. Please provide a file with one of the following \
-            extensions:\n %s' % ', '.join(ok_formats))
+            raise IOError('The file is of an unsupported format. Please \
+                    provide a file with one of the following extensions:\n \
+                    %s' % ', '.join(ok_formats))
         with open(filename, 'r') as the_file:
             lines = the_file.readlines()
             if extension in ['txt', 'edges', 'ncol']:
                 edge_list = []
                 for line in lines:
-                    edge_list.append(tuple(map(lambda x: int(x), line.split(' ')[:2])))
+                    edge_list.append(
+                            tuple(map(lambda x: int(x), line.split(' ')[:2]))
+                            )
                     #only add the first two, other columns are weight etc.
                     #NOTE: The weights are not handled yet.
                 self._get_nn(edge_list=edge_list)
@@ -970,8 +1015,11 @@ class Graph(_Graph):
                         try:
                             self.nn[key].append(int(elements[0]))
                         except NameError:
-                            raise NameError('The content needs to start with a #nodeID to specify to whom the following\
-                            nearest neighbours belong')
+                            raise NameError(
+                            'The content needs to start with a #nodeID to \
+                                    specify to whom the following nearest \
+                                    neighbours belong'
+                                    )
                         #issue: consider possible edge weights
                         #issue: catch exceptions
                 self._convert_to_array()
