@@ -4,6 +4,8 @@ from numpy import array
 import numpy as np
 from Queue import Queue
 from copy import copy
+from itertools import chain
+import numpy as np
 
 #This is the set of possible distributions for the degree.
 Distribution = {'poisson': random.poisson, 'normal': random.normal, 'binomial': random.binomial,
