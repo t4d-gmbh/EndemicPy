@@ -1,4 +1,4 @@
-from numpy import vectorize, array, float64, apply_along_axis
+from numpy import vectorize, random, apply_along_axis
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 
@@ -6,81 +6,38 @@ from Queue import Queue as SimpleQueue
 MAX_LIM = 100000
 
 
-def no_mut(loc=None, scale=None, size=10):
-    return array([MAX_LIM] * size, dtype=float64)
+def no_mut(dummy, length):
+    return [MAX_LIM] * length
 
 
 class Distro(object):
-    """
-    This class holds a queue of random times drawn from a given distribution with a specified scale.
-    
-    Arguments:
-    
-        - scale: The scale parameter for the exponential distribution. (default=1)
-        - pre: Predefined size of the queue. (default=10)
-        - loc: location of the distribution (default=0)
-        - alpha: power law exponent (default=1), only for the lomax distribution
-        - distribution type: string of the name of a distribution from scipy.stats
-            "exponential" (default) with parameter scale:
-                pdf(x, scale) = (1/scale) * exp(-x/scale)
-                
-            "gaussian":
-                pdf(x, scale, loc) = |(1/scale) * norm((x-loc)/scale)|
-                note : returns the absolute value
-                
-            "lomax" power-law distribution:
-                pdf(x, alpha) = alpha / (1+x)**(alpha+1)
-                for x >= 0, alpha > 0
-                the minimum value is controlled by `loc`
-            
-    """
-    def __init__(self, scale=1, pre=10, loc=0, alpha=1, distribution_type="exponential"):
-       
+    def __init__(self, scale, pre=10):
+        """
+        This class holds a queue of times drawn from an exponential 
+            distribution with a specified scale.
+        
+        Arguments:
+        
+            - scale: The scale parameter for the exponential distribution.
+            - pre: Predefined size of the queue. Default=10
+        """
         self.scale = scale
-        self.loc = loc
         self.pre = pre
-        self.alpha = alpha
         self.queue = SimpleQueue(maxsize=pre + 1)
         self.v_put = vectorize(self.queue.put_nowait)
-        self.distribution_type = distribution_type
-        
-        
         #the exponential dist is not defined for a rate of 0
         #therefore if the rate is 0 (scale is None then) huge times are set
-        self._dist_args = ()
-        self._dist_kwargs = {'loc': self.loc, 'scale': self.scale, 'size': self.pre}
-        if self.scale is None or self.scale == 0:
+        if self.scale is None:
             self.draw_fct = no_mut
         else:
-            if distribution_type == "exponential":
-                if not self.loc:
-                    from numpy import random
-                    self.draw_fct = random.exponential
-                    self._dist_kwargs.pop('loc')  # does not exist in numpy.random.exponential
-                else:
-                    from scipy.stats import expon
-                    self.draw_fct = expon.rvs
-            elif distribution_type == "gaussian":
-                from scipy.stats import norm
-                self.draw_fct = norm.rvs
-            elif distribution_type == "lomax":
-                from scipy.stats import lomax
-                self.draw_fct = lomax.rvs
-                self._dist_args = (self.alpha,)
-            else:
-                raise self.DistributionTypeError('This distribution type is not implemented yet.')
-
-
+            self.draw_fct = random.exponential
         #fillup the queue
         self.fillup()
         # there was: (new version compatible with pickeling see method below)
         self.v_get = vectorize(self.get_val)
 
-    class DistributionTypeError(Exception):
-        pass
-    
     def fillup(self):
-        self.v_put(abs(self.draw_fct(*self._dist_args, **self._dist_kwargs)))
+        self.v_put(self.draw_fct(self.scale, self.pre))
         return 0
 
     def get_val(self, a=None):
