@@ -216,27 +216,19 @@ class ContactSequence(ContactStructure):
 
         return [i for i in xrange(len(node_indices)) if node_indices[i]]
 
-    def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
+    def find_temporally_connected_nodes(self, source_node, start_time, delta_t):
         """
         Finds all the nodes connected to source_node by a time-respecting path
         in a given time window
         
-        Parameters
-        ----------
-        source_node
-        start_time: the starting time of the search
-        delta_t: stop_time = start_time + delta_t        
-        
-        Returns
-        -------
-        distances, delays
+        Returns (distances, delays)
         where distances is an array holding the distance from the source node for each node
         (-1 means that the node is unreachable),
         delays holds the time delay between each node and the source node
         
-        Call
-        ----
-        distances, delays = get_temporally_connected_nodes(source_node, start_time, delta_t)
+        :param source_node
+        :param start_time: the starting time of the search
+        :param delta_t: stop_time = start_time + delta_t
         
         11.08.2015, A.Bovet
         """
@@ -272,7 +264,7 @@ class ContactSequence(ContactStructure):
         
     def get_influence_set(self, node):
         """ returns the set of node indexes of the influence set of node "node"  """
-        distances, _ = self.get_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
+        distances, _ = self.find_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
         return [i for i, x in enumerate(distances) if x != -1]
 
 
