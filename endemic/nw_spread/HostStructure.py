@@ -1,6 +1,6 @@
 __author__ = 'Jonas I Liechti'
 import numpy as np
-from Queue import Queue
+
 
 class ContactStructure():
     class HostOrderError(Exception):
@@ -215,57 +215,6 @@ class ContactSequence(ContactStructure):
         node_indices = np.logical_and(self.nodes_start < t, self.nodes_end > t)
 
         return [i for i in xrange(len(node_indices)) if node_indices[i]]
-
-    def find_temporally_connected_nodes(self, source_node, start_time, delta_t):
-        """
-        Finds all the nodes connected to source_node by a time-respecting path
-        in a given time window
-        
-        Returns (distances, delays)
-        where distances is an array holding the distance from the source node for each node
-        (-1 means that the node is unreachable),
-        delays holds the time delay between each node and the source node
-        
-        :param source_node
-        :param start_time: the starting time of the search
-        :param delta_t: stop_time = start_time + delta_t
-        
-        11.08.2015, A.Bovet
-        """
-        # array holding the distance from the source node for all found nodes (-1 = not treated)
-        distances = [-1 for _ in xrange(self.n)]    
-        distances[source_node] = 0
-    
-        # arry holding the delay (temporal distance between the source node and the 
-        # temporally connected nodes (-1 = not treated)
-        delays = [-1 for _ in xrange(self.n)]    
-        delays[source_node] = start_time    
-        
-        # queue containing the nodes whose neighbours need to be searched
-        search_queue = Queue(maxsize = self.n)
-        search_queue.put_nowait(source_node)
-        
-        while not search_queue.empty():
-            node = search_queue.get_nowait()
-            dist = distances[node]
-            start = delays[node]
-            # lookup time respecting neighbours         
-            nn, nstarts, _ = self.get_events(node, start, start_time + delta_t - start)
-            
-            for neigh, neigh_start in zip(nn, nstarts):
-                # if we haven't aready visited this node
-                if distances[neigh] == -1:
-                    distances[neigh] = dist + 1
-                    delays[neigh] = neigh_start 
-                    search_queue.put_nowait(neigh)
-        
-        delays = [delays[i]- start_time for i in xrange(len(delays))]
-        return distances, delays
-        
-    def get_influence_set(self, node):
-        """ returns the set of node indexes of the influence set of node "node"  """
-        distances, _ = self.find_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
-        return [i for i, x in enumerate(distances) if x != -1]
 
 
 # ToDo: Make temporal part of this class. (low priority)
