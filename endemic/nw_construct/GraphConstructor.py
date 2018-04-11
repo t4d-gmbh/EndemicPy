@@ -246,6 +246,14 @@ class TemporalGraph(_Graph):
 
         self.t_start = params.get('t_start', np.min(self.starts))
         self.t_stop = params.get('t_stop', np.max(self.stops))
+        # TODO: check if that merge went on ok
+        self.all_nodes = list(np.union1d(self.node1s, self.node2s))
+        n = len(self.all_nodes)
+
+        #def get_id(an_id):
+        #    return self.all_nodes.index(an_id)
+        #v_get_id = np.vectorize(get_id)
+        # to here
         _Graph.__init__(self, n=n)
 
         # If nodes_start and nodes_end are specified in params, overwrite it

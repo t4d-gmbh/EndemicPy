@@ -11,9 +11,10 @@ class ContactStructure():
 
     class UniqueIDError(Exception):
         pass
-
+    
     class ImplementationMissingError(Exception):
         pass
+
 
     def __init__(
             self, from_object, susceptible=1, is_static=True,
@@ -89,6 +90,9 @@ class ContactStructure():
             self.o_ids = from_object.o_ids
             self._hosts = range(from_object.n)
             self.n = from_object.n
+            self.all_nodes = from_object.all_nodes
+            # all_nodes is the matching list between node_ids (the index)
+            # and the actual ids given from the input.
             if self.is_static:
                 self.nn = from_object.nn
             else:
@@ -213,6 +217,7 @@ class ContactNetwork(ContactStructure):
 
 
 class ContactSequence(ContactStructure):
+
     def __init__(
             self, hosts=None, events=None, event_keys=None,
             temporal_graph=None, **params
@@ -221,6 +226,7 @@ class ContactSequence(ContactStructure):
         The ContactSequence class defines a temporal network. Instances of this 
         class can either be defined using a list of hosts with a list of events
         or with a temporal_graph object.
+
 
         Parameter:
         ----------
@@ -306,8 +312,11 @@ class ContactSequence(ContactStructure):
     def get_events(self, node_id, start_time, delta_t):
         """
         Returns a view of the start times and stop times as well as the
-            involved nodes of all event for a given node within a time
-            range (start_time, start_time + delta_t)
+        involved nodes of all event for a given node within a time range
+        (start_time, start_time + delta_t)
+
+        Parameter:
+        ----------
         :param node_id:
         :param start_time:
         :param delta_t:
@@ -323,21 +332,31 @@ class ContactSequence(ContactStructure):
                 node_id == self.node2s
             )
         )
-        nn1 = self.node1s[the_filter]
-        nn2 = self.node2s[the_filter]
+
+        nn1 = self.node1s.view()[the_filter]
+        nn2 = self.node2s.view()[the_filter]
+        #TODO: alternative init: are self.node1s/2s np.arrays?
+        #nn1 = self.node1s[the_filter]
+        #nn2 = self.node2s[the_filter]
+
 
         nn = np.where(
             node_id != nn1,
             nn1,
             nn2
         )
-        return nn, self.starts[the_filter], self.stops[the_filter]
+
+        return nn, self.starts.view()[the_filter], \
+            self.stops.view()[the_filter]
+        # TODO: are self.starts/stops np.arrays or not?
+        # return nn, self.starts[the_filter], self.stops[the_filter]
 
     # ToDo: This method belongs to nw_construct
     def get_nodes_by_lifetime(self, t):
         """
         Returns all nodes that are "active" (as specified by
         TemporalGraph.nodes_start and TemporalGraph.nodes_end) at time t.
+
 
         :param t:
         :return:
@@ -433,6 +452,7 @@ class Host():
         self.susceptible = susceptible
         self.neighbours = neighbours
 
+#TODO: rename this
 class dynHost(Host):
     def __init__(
             self, an_id, contacts=None, susceptible=1,
@@ -453,3 +473,4 @@ class dynHost(Host):
                 for attr in get_from_params:
                     setattr(self, attr, params.pop(attr, None))
             self.params = params
+
