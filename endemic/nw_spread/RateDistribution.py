@@ -25,6 +25,8 @@ def set_default(parameter):
 
 def no_mut(dummy, length):
     return [MAX_LIM] * length
+    # TODO: alternative
+    # return array([MAX_LIM] * length, dtype=float64)
 
 
 def get_value(kwargs, parameter):
