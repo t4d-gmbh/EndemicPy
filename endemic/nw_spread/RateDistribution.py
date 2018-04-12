@@ -2,7 +2,7 @@ from numpy import vectorize, array, float64, random, apply_along_axis
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
-from numpy.random import normal, exponential
+import numpy.random as n_rand
 
 # this is the time it takes if a rate of 0 is given
 MAX_LIM = 100000
@@ -70,9 +70,12 @@ class Distro(object):
             Possible values are: 'exp' for exponential and 'norm' for gaussian.
             The default choice is 'exp'.
         :type distribution_type: str
-        :param scale: The scale parameter for the exponential distribution.
-            (default=1)
+        :param size: Predefined size of the queue.
+                (default: {0})
+        :param seed: provide a seed for the numpy random number generator
         :param kwargs: Several parameters are possible:
+            - scale: The scale parameter for the exponential distribution.
+                (default=1)
             - size: Predefined size of the queue.
                 (default: {0})
             - set of parameters specific to the distribution that is
@@ -86,36 +89,57 @@ class Distro(object):
                     - If the parameter 'loc' is not given, a default value of
                         loc = {2} is chosen.
     """
-    def __init__(self, distribution_type='exp', **kwargs):
+    def __init__(self,
+            distribution_type='exp',
+            size=DEFAULT_VALUES['size'],
+            seed=None,
+            **kwargs):
+        self.size = size
+        self._init_seed(seed)
         self.distribution_type = distribution_type
+        self._init_draw_fct(self, **kwargs)
+        # handle the special case of scale == 0
+        self.queue = SimpleQueue(maxsize=self.size + 1)
+        self.v_put = vectorize(self.queue.put_nowait)
+        # fill the queue
+        self.fillup()
+        self.v_get = vectorize(self.get_val)
+
+    def _init_seed(self, seed):
+        if seed is None:
+            n_rand.seed()
+            self.seed = n_rand.get_state()
+        else:
+            assert isinstance(seed, tuple), 'if provided seed must be a tuple'
+            n_rand.set_state(seed)
+            self.seed = n_rand.get_state()
+
+    def _init_draw_fct(self, **kwargs):
         if self.distribution_type == 'exp':
-            self.draw_fct = exponential
+            self.draw_fct = n_rand.exponential
             self._dist_params = {
                 'scale': get_value(kwargs, 'scale'),
-                'size': get_value(kwargs, 'size')
+                # 'size': get_value(kwargs, 'size')
                 }
+            if self._dist_params['scale'] == 0:
+                self.draw_fct = inf_time
         elif self.distribution_type == 'normal':
-            self.draw_fct = normal
+            self.draw_fct = n_rand.normal
             self._dist_params = {
                 'scale': get_value(kwargs, 'scale'),
-                'size': get_value(kwargs, 'size'),
-                'log': get_value(kwargs, 'loc')
+                # 'size': get_value(kwargs, 'size'),
+                'loc': get_value(kwargs, 'loc')
                 }
+            if self._dist_params['scale'] == 0:
+                #TOIMPLEMENT
+                # We are at a dirak delta
+                pass
         else:
             raise self.DistributionTypeError(
                     '\'{0}\' distribution is not implemented yet.'.format(
                         self.distribution_type
                         )
                     )
-        # handle the special case of scale == 0
-        if not self._dist_params['scale']:
-            self.draw_fct = inf_time
-        #TODO: Honestly don't know where self.size is defined...
-        self.queue = SimpleQueue(maxsize=self.size + 1)
-        self.v_put = vectorize(self.queue.put_nowait)
-        # fill the queue
-        self.fillup()
-        self.v_get = vectorize(self.get_val)
 
     class DistributionTypeError(Exception):
         pass
@@ -178,18 +202,24 @@ class Distro(object):
             while len(event_queue_list):
                 d['queue'].put_nowait(event_queue_list.pop())
         self.__dict__.update(d)
-        self.__dict__['v_put'] = vectorize(self.queue.put_nowait)
-        self.__dict__['v_get'] = vectorize(self.get_val)
-        #TODO: Not sure which one is right
-        if self.scale is None:
-            self.scale = 0
-            self.queue = SimpleQueue(maxsize=self.pre + 1)
-            self.v_put = vectorize(self.queue.put_nowait)  # this is specific to the queue, thus reinit here
-            self.draw_fct = no_mut
+        # not sure if the seed for numpy.random is initiated only here
+        self._init_seed(d.get('seed', None))
+        self._init_draw_fct(**self._dist_params)
+        if 'queue' in self.__dict__:
+            self.__dict__['v_put'] = vectorize(self.queue.put_nowait)
+            self.__dict__['v_get'] = vectorize(self.get_val)
+        #TODO: fix above; Not sure which one is right
+        # if self.scale is None:
+        #     self.scale = 0
+        #     self.queue = SimpleQueue(maxsize=self.size + 1)
+        #     # TODO: alternative
+        #     # self.queue = SimpleQueue(maxsize=self.pre + 1)
+        #     self.v_put = vectorize(self.queue.put_nowait)  # this is specific to the queue, thus reinit here
+        #     self.draw_fct = no_mut
         #if not self.scale:
         #    self.queue = SimpleQueue(maxsize=self.size + 1)
         #    # this is specific to the queue, thus "reinit" here
         #    self.v_put = vectorize(self.queue.put_nowait)
         #    self.draw_fct = inf_time
 
-            self.fillup()
+        #    self.fillup()
