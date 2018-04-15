@@ -9,7 +9,6 @@ from unittest import TestCase
 class TestDistro(TestCase):
     temp_pickle_file = 'temp_distro.p'
 
-
     def setUp(self):
         seed()
         self.queue_size = 3
@@ -24,7 +23,6 @@ class TestDistro(TestCase):
             pass
         # not sure if this works...
         del self.distro
-
 
     def test_distro_queue_dump(self):
         """
@@ -70,7 +68,7 @@ class TestDistro(TestCase):
         Integrity of Distro.queue when loading a Distro object
         form a pickle.
 
-        Makes sense to test only after test_distro_dump_persistence
+        Makes sense to test only after test_distro_queue_dump
         succeeded.
         """
         import pickle
@@ -113,7 +111,23 @@ class TestDistro(TestCase):
         """
         Distro.v_get equivalent to repeated Distro.get_val
         """
-        pass
+        from copy import deepcopy
+        # duplicate the self.distro
+        distro2 = deepcopy(self.distro)
+        set_state(self.seed)
+        # draw 2*self.queue_size>distro_values
+        _shape_object = [0]*(2*self.queue_size)
+        distro_values = self.distro.v_get(_shape_object)
+        set_state(self.seed)
+        distro2_values = [
+                distro2.get_val() for _ in xrange(len(_shape_object))
+                ]
+        self.assertEqual(
+                distro_values,
+                distro2_values,
+                'Distro.get_val and Distro.v_get do not produce '\
+                        'identical output'
+                )
 
     def test_distro_draw_fct_load(self):
         """
@@ -141,4 +155,3 @@ class TestDistro(TestCase):
                 distro2_values,
                 'Loading Distro from pickle alters Distro.draw_fct'
                 )
-
