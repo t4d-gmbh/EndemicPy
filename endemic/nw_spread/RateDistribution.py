@@ -1,9 +1,9 @@
-from numpy import vectorize, array, float64, random, apply_along_axis
 from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
 import numpy.random as n_rand
 from numpy import ndarray
+from numpy import array, float64 
 
 # this is the time it takes if a rate of 0 is given
 MAX_LIM = 100000
@@ -24,18 +24,11 @@ def set_default(parameter):
     return DEFAULT_VALUES[parameter]
 
 
-def no_mut(dummy, length):
-    return [MAX_LIM] * length
-    # TODO: alternative
-    # return array([MAX_LIM] * length, dtype=float64)
-
-
 def get_value(kwargs, parameter):
     if parameter in kwargs:
         return kwargs[parameter]
     else:
         return set_default(parameter)
-    return kwargs.get(parameter, set_default(parameter))
 
 
 def inf_time(**kwargs):
@@ -52,7 +45,6 @@ def inf_time(**kwargs):
 
 
 class Distro(object):
-
     """
         This class holds a queue of random times drawn from a given
         distribution with a specified scale.
@@ -86,19 +78,12 @@ class Distro(object):
         )
     def __init__(self,
             distribution_type='exp',
-            # size=DEFAULT_VALUES['size'],
-            # seed=None,
             **kwargs):
-        # self.size = size
-        # self._init_seed(seed)
         self.distribution_type = distribution_type
         self._init_draw_fct(**kwargs)
-        # handle the special case of scale == 0
         self.queue = SimpleQueue(maxsize=self._dist_params['size'])
-        #self.v_put = vectorize(self.queue.put_nowait)
         # fill the queue
         self.fillup()
-        #self.v_get = vectorize(self.get_val)
 
     def v_put(self, new_values):
         for n_val in new_values:
@@ -110,17 +95,6 @@ class Distro(object):
         else:
             length = len(shape_obj)
         return [self.get_val() for _ in xrange(length)]
-
-
-    # def _init_seed(self, seed):
-    #     if seed is None:
-    #         n_rand.seed()
-    #         self.seed = n_rand.get_state()
-    #     else:
-    #         assert isinstance(seed, tuple), \
-    #                 'seed, if provided, must be a tuple'
-    #         n_rand.set_state(seed)
-    #         self.seed = n_rand.get_state()
 
     def _init_draw_fct(self, **kwargs):
         if self.distribution_type == 'exp':
@@ -154,7 +128,6 @@ class Distro(object):
 
     def fillup(self):
         self.v_put(self.draw_fct(**self._dist_params))
-        #self.v_put(abs(self.draw_fct(**self._dist_params)))
         return 0
 
     def get_val(self, a=None):
@@ -167,32 +140,9 @@ class Distro(object):
             self.fillup()
             return self.queue.get_nowait()
 
-    def get_times(limit):
-        """
-        Return an array of events happening before the limit.
-        
-        Parameters:
-        -----------
-            :param limit: upper limit for the event times sequence. Only events
-                happening before the limit will be returned.
-            :type limit: float, int
-        """
-        # draw form the dist until we reach the limit time.    
-        pass
-    
-        
-    #def v_get(self, an_array):
-    #    #return map(self.get_val, xrange(an_array.size))
-    #    return apply_along_axis(self.get_val, 0, an_array)
-    # to transform the priority queue holding the upcoming events into a pickle-abel list
-    
-
     def __getstate__(self):
         d = dict(self.__dict__)
         queue = d.pop('queue')
-        # v_put is not pickle-able
-        #del d['v_put']
-        #del d['v_get']
         simple_queue_list = []
         while True:
             try:
@@ -201,16 +151,12 @@ class Distro(object):
                 break
         d['simple_queue_list'] = simple_queue_list
         # now rebuild the queue for current object
-        # self._init_seed(self.seed)
         self._init_draw_fct(**self._dist_params)
         self.queue = SimpleQueue(maxsize=self._dist_params['size'])
         for _el in simple_queue_list:
             self.queue.put_nowait(_el)
-        #self.v_put = vectorize(self.queue.put_nowait)
-        #self.v_get = vectorize(self.get_val)
         return d
 
-    # to load the pickled event list back into a priority queue
     def __setstate__(self, d):
         if 'simple_queue_list' in d:
             event_queue_list = d.pop('simple_queue_list')[::-1]
@@ -218,6 +164,4 @@ class Distro(object):
             while len(event_queue_list):
                 d['queue'].put_nowait(event_queue_list.pop())
         self.__dict__.update(d)
-        # not sure if the seed for numpy.random is initiated only here
-        # self._init_seed(d.get('seed', None))
         self._init_draw_fct(**self._dist_params)
