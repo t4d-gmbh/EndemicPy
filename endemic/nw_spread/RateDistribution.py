@@ -35,7 +35,7 @@ def get_value(kwargs, parameter):
 
 def docstr_param(*sub):
     def dec(obj):
-        obj.__doc.__ = obj.__doc__.format(*sub)
+        obj.__doc__ = obj.__doc__.format(*sub)
     return dec
 
 
