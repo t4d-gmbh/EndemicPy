@@ -3,6 +3,7 @@ from Queue import Empty
 from Queue import Queue as SimpleQueue
 import sys
 import numpy.random as n_rand
+from numpy import ndarray
 
 # this is the time it takes if a rate of 0 is given
 MAX_LIM = 100000
@@ -104,7 +105,7 @@ class Distro(object):
             self.queue.put_nowait(n_val)
 
     def v_get(self, shape_obj):
-        if isinstance(shape_obj, array):
+        if isinstance(shape_obj, ndarray):
             length = shape_obj.size
         else:
             length = len(shape_obj)
@@ -163,9 +164,7 @@ class Distro(object):
         try:
             return self.queue.get_nowait()
         except Empty:
-            print 'empty'
             self.fillup()
-            print self.queue.qsize()
             return self.queue.get_nowait()
 
     def get_times(limit):
@@ -189,7 +188,6 @@ class Distro(object):
     
 
     def __getstate__(self):
-        print self.queue.qsize()
         d = dict(self.__dict__)
         queue = d.pop('queue')
         # v_put is not pickle-able
@@ -206,7 +204,7 @@ class Distro(object):
         # self._init_seed(self.seed)
         self._init_draw_fct(**self._dist_params)
         self.queue = SimpleQueue(maxsize=self._dist_params['size'])
-        for _el in simple_queue_list[::-1]:
+        for _el in simple_queue_list:
             self.queue.put_nowait(_el)
         #self.v_put = vectorize(self.queue.put_nowait)
         #self.v_get = vectorize(self.get_val)
@@ -223,22 +221,3 @@ class Distro(object):
         # not sure if the seed for numpy.random is initiated only here
         # self._init_seed(d.get('seed', None))
         self._init_draw_fct(**self._dist_params)
-        if 'queue' in self.__dict__:
-            print 'go'
-            #self.v_put = vectorize(self.queue.put_nowait)
-            #self.v_get = vectorize(self.get_val)
-        #TODO: fix above; Not sure which one is right
-        # if self.scale is None:
-        #     self.scale = 0
-        #     self.queue = SimpleQueue(maxsize=self.size + 1)
-        #     # TODO: alternative
-        #     # self.queue = SimpleQueue(maxsize=self.pre + 1)
-        #     self.v_put = vectorize(self.queue.put_nowait)  # this is specific to the queue, thus reinit here
-        #     self.draw_fct = no_mut
-        #if not self.scale:
-        #    self.queue = SimpleQueue(maxsize=self.size + 1)
-        #    # this is specific to the queue, thus "reinit" here
-        #    self.v_put = vectorize(self.queue.put_nowait)
-        #    self.draw_fct = inf_time
-
-        #    self.fillup()
