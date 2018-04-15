@@ -1,5 +1,7 @@
 from __future__ import absolute_import
-from RateDistribution import Distro
+import sys
+print sys.path
+from ..endemic.nw_spread.RateDistribution import Distro
 from Queue import Empty
 import pickle
 from numpy.random import get_state, set_state, seed
