@@ -12,13 +12,17 @@ def get_p(k, var):
         this returns to probability of success.
     """
     return k/float(var)
+
 def get_r(k, var):
     #return (k**2/var)*(1/(var/float(k)-1))
     return int(k**2/(var - k))
+
 def get_scale(k,var):
     return var / float(k)
+
 def get_shape(k,var):
     return k ** 2 / float(var)
+
 distribution_params = {}
 distribution_params['network_type'] = distro
 if var== 0.0:
