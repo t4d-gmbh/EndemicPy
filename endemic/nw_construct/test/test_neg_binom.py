@@ -1,4 +1,6 @@
-from GraphConstructor import Graph
+import sys
+print '\n'.join(sys.path)
+from ..GraphConstructor import Graph
 
 n=100000
 k=4
