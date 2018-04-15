@@ -1,5 +1,3 @@
-import sys
-print '\n'.join(sys.path)
 from ..GraphConstructor import Graph
 
 n=100000
