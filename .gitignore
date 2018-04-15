@@ -1,5 +1,6 @@
 # Vim
 **/*.swp
+**/*.swo
 
 ### Python template
 # Byte-compiled / optimized / DLL files
