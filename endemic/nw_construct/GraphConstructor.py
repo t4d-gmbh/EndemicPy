@@ -123,7 +123,7 @@ class _Graph():
              and start and stop times
         :return:
     """
-    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
+    def __init__(self, nodes=None, N=None, edges=None, degrees=None):
         self._nodes = nodes if nodes is not None else np.array([])
         self._edges = edges if edges is not None else np.array([])
         self.degrees = None
@@ -577,7 +577,7 @@ class Graph(_Graph):
                 self._create_graph(**self.distribution)
 
             # create the o_ids attribtue
-            self.o_ids = range(n)
+            self.o_ids = range(self.n)
 
     def _create_graph(self, **distribution):
         """

@@ -14,7 +14,7 @@ __pycache__/
 *.p
 .Python
 py_env/
-envd/
+env/
 build/
 develop-eggs/
 dist/
