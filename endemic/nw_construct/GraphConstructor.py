@@ -273,6 +273,14 @@ class TemporalGraph(_Graph):
         # remap the node ids
         n = len(self.o_ids)
         self.key_mapper = {val: key for key, val in enumerate(self.o_ids)}
+        self.all_nodes = [None]*len(self.o_ids)
+        for oid, _id in self.key_mapper.items():
+            self.all_nodes[_id] = oid
+        # ensure the value key mapping is correct
+        assert all((
+            self.all_nodes.index(val) == self.key_mapper[val]
+            for val in self.all_nodes
+        ))
 
         def map_key(k):
             return self.key_mapper.get(k)
