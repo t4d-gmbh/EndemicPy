@@ -5,12 +5,16 @@ import numpy as np
 from Queue import Queue
 from copy import copy
 
-#This is the set of possible distributions for the degree.
+# Set of possible distributions for the degree.
 Distribution = {
-    'poisson': random.poisson, 'normal': random.normal,
-    'binomial': random.binomial, 'exponential': random.exponential,
-    'geometric': random.geometric, 'gamma': random.gamma,
-    'power': random.power, 'weibull': random.weibull,
+    'poisson': random.poisson,
+    'normal': random.normal,
+    'binomial': random.binomial,
+    'exponential': random.exponential,
+    'geometric': random.geometric,
+    'gamma': random.gamma,
+    'power': random.power,
+    'weibull': random.weibull,
     'negative_binomial': random.negative_binomial
 }
 
@@ -24,28 +28,30 @@ class InvalidArgumentError(Exception):
 
 class Node():
     all_ = list()
+
     class NoNodeError(Exception):
         pass
+
     def __init__(
-            self, uid=None, contacts= None, neighbours=None, start=None,
-            stop=None, prop = None, get_from_prop=None
+            self, uid=None, contacts=None, neighbours=None, start=None,
+            stop=None, prop=None, get_from_prop=None
             ):
         """
         This class defines a single node.
 
         Arguments:
-            - uid: unique identifier of the node 
+            - uid: unique identifier of the node
             - contacts: a list of contacts the node has.
             - neighbours: a list of neighbours of the node
         :param uid: unique id for each host in a contact_structure
         :param contacts: A list of either lists/tuples or dicts. Each element
-            describes a contact that must have a partner node (use an_id 
+            describes a contact that must have a partner node (use an_id
             attribute) and can have a duration and/or start stop and further
             info.
         :param neighbours: A list of either host uid's indicating all
             the neighbours of the node.
         :param prop: Optional argument. If provided, must be a dict.
-        :param get_from_prop: List of strings specifying which keys from the 
+        :param get_from_prop: List of strings specifying which keys from the
             dict provided in prop should be made attributes of the node.
         :return:
         """
@@ -115,6 +121,7 @@ class Node():
     #def add_manipulations(self, manipulations):
     #    self.add_events(self.manipulations, manipulations)
 
+
 class _Graph():
     """
         This is the basic class for a graph, containing but
@@ -123,7 +130,7 @@ class _Graph():
              and start and stop times
         :return:
     """
-    def __init__(self, nodes=None, N=None, edges=None, degrees=None):
+    def __init__(self, nodes=None, n=None, edges=None, degrees=None):
         self._nodes = nodes if nodes is not None else np.array([])
         self._edges = edges if edges is not None else np.array([])
         self.degrees = None
@@ -140,8 +147,8 @@ class _Graph():
                 self.degrees.append(len(list(set(nn[i]))))
             del nn
         self.n = None
-        if N is not None:
-            self.n = N
+        if n is not None:
+            self.n = n
         if np.size(self._nodes):
             self.n = len(self._nodes)
         self.info = {}  # dict containing some info
@@ -158,29 +165,33 @@ class TemporalGraph(_Graph):
             provided.
         :param node_import: A list of node attributes that will be converted to
             an attribute of self (in form of a list).
-        :param events: a list of events, each element must contain a start, stop
-            node1 and node2. The elements can be lists itself or dicts. If 
-            events is not provided the host or temporal_graph attribute must
+        :param events: a list of events, each element must contain a start,
+            stop node1 and node2. The elements can be lists itself or dicts.
+            If events is not provided the host or temporal_graph attribute must
             be provided.
         :param event_keys: A dictionary mapping the following keys:
-            'start', 'stop', 'node1', 'node2'. This attribute must be provided 
-            if the events attribute is not None. The corresponding values to 
-            these keys must allow to extract the content from each individual 
-            event from the events attribute. So if events is a list of 
+            'start', 'stop', 'node1', 'node2'. This attribute must be provided
+            if the events attribute is not None. The corresponding values to
+            these keys must allow to extract the content from each individual
+            event from the events attribute. So if events is a list of
             lists (e.g.  [[start, stop, node1, node2], ..]) event_keys must map
-            to the corresponding indices (so {'start':0, 'stop': 1, ...}). 
+            to the corresponding indices (so {'start':0, 'stop': 1, ...}).
             Equivalently, if events is a list of dict then event_keys must map
             to the corresponding keys.
-        :param source: either the path to a text file (e.g. csv) or a python 
+        :param source: either the path to a text file (e.g. csv) or a python
             dict holding all the events.
         :param params:
+            :param key_mapping: optional dict to map custom keys of the contact
+            sequence to the required keys, that are 'start', 'stop', 'node1'
+            and 'node2'
         :return:
     """
     def __init__(
-            self, nodes=None, node_import=None, events=None, event_keys = None,
+            self, nodes=None, node_import=None, events=None, event_keys=None,
             source=None, **params
             ):
-        #_Graph.__init__(self)
+        # _Graph.__init__(self)
+        self.t_start, self.t_stop = None, None
         self.is_static = False
         self.has_dynamic_nodes = False
         # make type specific imports
@@ -227,17 +238,15 @@ class TemporalGraph(_Graph):
                 self._load_from_file(source, **params)
             elif isinstance(source, dict):
                 # if we don't need to pass on the params, better don't
-                self._load_from_dict(source)
+                self._load_from_dict(source, **params.get('key_mapping', {}))
             else:  # source must be an EventQueue then
                 # copy events that were passed by arguments
                 self._copy_events(**params)
             # ToDo: self.event_params is not filled
             self.event_params = []
             self.o_ids = list(np.union1d(self._node1s, self._node2s))
-            n = len(self.o_ids)
-        # now we need to remap the node ids
+        # remap the node ids
         mapper = {val: key for key, val in enumerate(self.o_ids)}
-        print mapper
         get_element = lambda k: mapper.get(k)
         v_get_id = np.vectorize(get_element)
 
@@ -245,18 +254,15 @@ class TemporalGraph(_Graph):
         # self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
-        print self.node1s
 
-        self.t_start = params.get('t_start', np.min(self.starts))
-        self.t_stop = params.get('t_stop', np.max(self.stops))
-        # TODO: check if that merge went on ok
-        self.all_nodes = list(np.union1d(self.node1s, self.node2s))
-        n = len(self.all_nodes)
-
-        #def get_id(an_id):
-        #    return self.all_nodes.index(an_id)
-        #v_get_id = np.vectorize(get_id)
-        # to here
+        self.t_start = params.get(
+                't_start',
+                np.min(self.starts) if self.t_start is None else self.t_start
+                )
+        self.t_stop = params.get(
+                't_stop',
+                np.max(self.stops) if self.t_stop is None else self.t_stop
+                )
         _Graph.__init__(self, n=n)
 
         # If nodes_start and nodes_end are specified in params, overwrite it
@@ -416,7 +422,7 @@ class TemporalGraph(_Graph):
             data = np.genfromtxt(
                 f,
                 delimiter=self._file_delimiter,
-                unpack=False, 
+                unpack=False,
                 autostrip=True,
                 comments='#',
                 names=', '.join(self._file_header),
@@ -435,17 +441,16 @@ class TemporalGraph(_Graph):
             # ToDo: Read nodes_start and nodes_end as optional arguments from a
             # text file
 
-
-    def _load_from_dict(self, source):
+    def _load_from_dict(self, source, **params):
         """
         Create a temporal graph from a python dictionary. The following keys
             are mandatory:
 
-            - starts: a list/array of start times for each event
-            - stops: a list/array of end times for each event
-            - node1s: a list/array of IDs for interaction partner 1 for each
+            - start: a list/array of start times for each event
+            - stop: a list/array of end times for each event
+            - node1: a list/array of IDs for interaction partner 1 for each
                 event
-            - node2s: a list/array of IDs of interaction partner 2 for each
+            - node2: a list/array of IDs of interaction partner 2 for each
                 event
 
             Optional:
@@ -462,16 +467,25 @@ class TemporalGraph(_Graph):
 
         Parameters:
         -----------
-        
+
         :param source:
         :return:
         """
+
+        _start = params.get('start', 'start')
+        _stop = params.get('stop', 'stop')
+        _node1 = params.get('node1', 'node1')
+        _node2 = params.get('node2', 'node2')
+        _tstart = params.get('t_start', 't_start')
+        _tstop = params.get('t_stop', 't_stop')
+        _nstart = params.get('node_start', 'node_start')
+        _nend = params.get('node_end', 'node_end')
         # mandatory arguments:
         try:
-            self.starts = np.array(source['starts'], dtype=np.float64)
-            self.stops = np.array(source['stops'], dtype=np.float64)
-            self._node1s = np.array(source['node1s'], dtype=np.int64)
-            self._node2s = np.array(source['node2s'], dtype=np.int64)
+            self.starts = np.array(source[_start], dtype=np.float64)
+            self.stops = np.array(source[_stop], dtype=np.float64)
+            self._node1s = np.array(source[_node1])
+            self._node2s = np.array(source[_node2])
         except KeyError:
             raise InvalidArgumentError(
                     'Loading the temporal graph from a dict failed.\n Here is'
@@ -481,10 +495,10 @@ class TemporalGraph(_Graph):
                     )
 
         # Optional part
-        self.t_start = np.array(source.pop('t_start', np.min(self.starts)))
-        self.t_stop = np.array(source.pop('t_stop', np.max(self.stops)))
-        self.nodes_start = source.pop('nodes_start', None)
-        self.nodes_end = source.pop('nodes_end', None)
+        self.t_start = np.array(source.pop(_tstart, np.min(self.starts)))
+        self.t_stop = np.array(source.pop(_tstop, np.max(self.stops)))
+        self.nodes_start = source.pop(_nstart, None)
+        self.nodes_end = source.pop(_nend, None)
 
         # If further data for the nodes is present, pass them to self.params
         self.host_params = source.get('host_params', {})
@@ -515,7 +529,7 @@ class TemporalGraph(_Graph):
 
 
 class Graph(_Graph):
-    def __init__(self, N=None, method='stub', **distribution):
+    def __init__(self, n=None, method='stub', **distribution):
         """
             Possible arguments for the distribution are:
             - network_type: specify the type of network that should be
@@ -535,7 +549,7 @@ class Graph(_Graph):
                 specific numpy function. Or just give the argument network_type
                 and look at what the error tells you.
                 
-           see self._create_graph for more information
+           See self._create_graph for more information
         """
         _Graph.__init__(self)
         self.is_static = True
@@ -548,9 +562,9 @@ class Graph(_Graph):
         self.is_directed = False
         # to do: pass usefull info in here.
         self._info = {}
-        #for now only undirected networks
-        if N is not None:
-            self.n = N
+        # for now only undirected networks
+        if n is not None:
+            self.n = n
             if method in ['proba', 'stub']:
                 self.method = method
             else:
@@ -565,7 +579,7 @@ class Graph(_Graph):
                 self.nn = []
                 self._convert_to_array()
                 empty_graph = True
-                #create an empty graph if network_type is not given
+                # create an empty graph if network_type is not given
             if not empty_graph:
                 if self.nw_name not in self.permitted_types:
                     raise ValueError(
