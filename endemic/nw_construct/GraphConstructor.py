@@ -274,8 +274,10 @@ class TemporalGraph(_Graph):
         n = len(self.o_ids)
         self.key_mapper = {val: key for key, val in enumerate(self.o_ids)}
 
-        def map_key(self, k):
+        def map_key(k):
             return self.key_mapper.get(k)
+
+        self.map_key = map_key
 
         v_get_id = np.vectorize(map_key)
 
