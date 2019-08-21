@@ -323,12 +323,12 @@ class TemporalGraph(_Graph):
         :return:
         """
         if isinstance(
-                self.nodes_start, dict
+                self._nodes_start, dict
                 ) and isinstance(
-                        self.nodes_end, dict
+                        self._nodes_end, dict
                         ):
-            nodes_start = copy(self.nodes_start)
-            nodes_end = copy(self.nodes_end)
+            nodes_start = copy(self._nodes_start)
+            nodes_end = copy(self._nodes_end)
             self.nodes_start = np.zeros(len(nodes_start))
             self.nodes_end = np.zeros(len(nodes_end))
             for node_name, val in nodes_start.items():
@@ -337,15 +337,21 @@ class TemporalGraph(_Graph):
                 self.nodes_end[self.map_key(node_name)] = val
 
         elif isinstance(
-                self.nodes_start, np.ndarray
+                self._nodes_start, np.ndarray
                 ) and isinstance(
-                        self.nodes_end, np.ndarray
+                        self._nodes_end, np.ndarray
                         ):
             # in this case self.o_ids has to be a list of integers with all
             # integer values up to n that map to positions in nodes_start and
             # nodes_end. Simply re-map positions...
-            self.nodes_start = self.nodes_start[self.map_key(self.o_ids)]
-            self.nodes_end = self.nodes_end[self.map_key(self.o_ids)]
+            self.nodes_start = {
+                    i: self._nodes_start[i]
+                    for i in xrange(len(self._nodes_start))
+                    }  # self.map_key(self.o_ids)]
+            self.nodes_end = {
+                    i: self._nodes_end[i]
+                    for i in xrange(len(self._nodes_end))
+                    }  # self._nodes_end[self.map_key(self.o_ids)]
         else:
             InvalidArgumentError(
                     'The arguments <nodes_start> and <nodes_end> have to be '
