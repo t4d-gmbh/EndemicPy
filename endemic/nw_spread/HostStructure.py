@@ -207,7 +207,7 @@ class ContactNetwork(ContactStructure):
             #we want to update the topology:
             my_graph.new_realization()  #change my_graph
             #update my_coontact_nw according to new topology of my_graph
-            my_contact_nw.update_topology(graph=my_graph)  
+            my_contact_nw.update_topology(graph=my_graph)
 
         :param graph:
         :type graph: nw_construct.Graph
@@ -224,35 +224,35 @@ class ContactSequence(ContactStructure):
             temporal_graph=None, **params
             ):
         """
-        The ContactSequence class defines a temporal network. Instances of this 
+        The ContactSequence class defines a temporal network. Instances of this
         class can either be defined using a list of hosts with a list of events
         or with a temporal_graph object.
 
 
         Parameter:
         ----------
-        :param hosts: a list of Host instances. If this argument is not provided
-            either the events or the temporal_graph arguments need to be
-            provided.
-        :param events: a list of events, each element must contain a start, stop
-            node1 and node2. The elements can be lists itself or dicts. If 
-            events is not provided the host or temporal_graph attribute must
-            be provided.
+        :param hosts: a list of Host instances.
+            If this argument is not provided either the events or the
+            temporal_graph arguments need to be provided.
+        :param events: a list of events, each element must contain a
+            start, stop,  node1 and node2.
+            The elements can be lists itself or dicts. If events is not
+            provided the host or temporal_graph attribute must be provided.
         :param event_keys: a dictionary mapping the following keys:
-            'start', 'stop', 'node1', 'node2'. This attribute must be provided 
-            if the events attribute is not None. The corresponding values to 
-            these keys must allow to extract the content from each individual 
-            event from the events attribute. So if events is a list of 
+            'start', 'stop', 'node1', 'node2'. This attribute must be provided
+            if the events attribute is not None. The corresponding values to
+            these keys must allow to extract the content from each individual
+            event from the events attribute. So if events is a list of
             lists (e.g.  [[start, stop, node1, node2], ..]) event_keys must map
-            to the corresponding indices (so {'start':0, 'stop': 1, ...}). 
+            to the corresponding indices (so {'start':0, 'stop': 1, ...}).
             Equivalently, if events is a list of dict then event_keys must map
             to the corresponding keys.
-        :param temporal_node: An instance of the TemporalGraph class from 
+        :param temporal_graph: An instance of the TemporalGraph class from
             nw_construct package. If this attribute is provided, the events
             are ignored.
         :param params: optional arguments can be passed here. Possible are:
             :param node_props: a list of node properties you want to import.
-                If this argument is provided, the attribute node_props will 
+                If this argument is provided, the attribute node_props will
                 be populated with the properties specified here.
                 node_props is a list of dictionaries, 1 for each node.
         """
