@@ -26,6 +26,11 @@ class InvalidArgumentError(Exception):
         self.msg = msg
 
 
+class NotImplementedError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+
 class Node():
     all_ = list()
 
@@ -192,6 +197,8 @@ class TemporalGraph(_Graph):
             ):
         # _Graph.__init__(self)
         self.t_start, self.t_stop = None, None
+        self._nodes_start, self._nodes_stop = None, None
+        self.nodes_start, self.nodes_stop = None, None
         self.is_static = False
         self.has_dynamic_nodes = False
         # make type specific imports
@@ -240,12 +247,14 @@ class TemporalGraph(_Graph):
                 # if we don't need to pass on the params, better don't
                 self._load_from_dict(source, **params.get('key_mapping', {}))
             else:  # source must be an EventQueue then
-                # copy events that were passed by arguments
-                self._copy_events(**params)
+                # todo: copy events that were passed by arguments
+                raise NotImplementedError('Provide either the path to a file' +
+                        ' or a dictionary as source')
             # ToDo: self.event_params is not filled
             self.event_params = []
             self.o_ids = list(np.union1d(self._node1s, self._node2s))
         # remap the node ids
+        n = len(self.o_ids)
         mapper = {val: key for key, val in enumerate(self.o_ids)}
         get_element = lambda k: mapper.get(k)
         v_get_id = np.vectorize(get_element)
@@ -254,6 +263,23 @@ class TemporalGraph(_Graph):
         # self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
+
+        # If nodes_start and nodes_end are specified in params, overwrite it
+        if 'nodes_start' in params:
+            self._nodes_start = params.get('nodes_start')
+        if 'nodes_end' in params:
+            self._nodes_end = params.get('nodes_end')
+
+        if self._nodes_start not in [{}, None]:
+            self.nodes_start = {
+                    v_get_id(node): self._nodes_start[node]
+                    for node in self._nodes_start
+                    }
+        if self._nodes_end not in [{}, None]:
+            self.nodes_end = {
+                    v_get_id(node): self._nodes_end[node]
+                    for node in self._nodes_end
+                    }
 
         self.t_start = params.get(
                 't_start',
@@ -265,11 +291,6 @@ class TemporalGraph(_Graph):
                 )
         _Graph.__init__(self, n=n)
 
-        # If nodes_start and nodes_end are specified in params, overwrite it
-        if 'nodes_start' in params:
-            self.nodes_start = params.get('nodes_start')
-        if 'nodes_end' in params:
-            self.nodes_end = params.get('nodes_end')
 
         # transform nodes_start and nodes_end into np.arrays if needed
         if not (self.nodes_start is None or self.nodes_end is None):
@@ -337,48 +358,46 @@ class TemporalGraph(_Graph):
         Parameters:
         -----------
         :param source:
-        :param params: Several arguments depending on the type of
-                    the source argument.
-                    In any case:
-                        Mandatory:
-                            start_tag: Name of the column containing the
-                                start time/frame tag.
-                            stop_tag: Name of the column containing the
-                                stop time/frame tag.
-                            node1_tag: Name of the column with the first
-                                participant
-                            node2_tag: Name of the column with the second
-                                participant
-                            delimiter: The string delimiting the columns
+        :param params: Several arguments depending on the type of the source
+            argument.
+            Mandatory:
+                start_tag: Name of the column containing the
+                    start time/frame tag.
+                stop_tag: Name of the column containing the
+                    stop time/frame tag.
+                node1_tag: Name of the column with the first
+                    participant
+                node2_tag: Name of the column with the second
+                    participant
+                delimiter: The string delimiting the columns
 
-                                (default: 'TAB'). You can use the actual
-                                string e.g. '\\t' for 'TAB" or choose from:
-                                ('TAB', 'space')
-                            string_values: A list of all the columns containing
-                                strings as values. All the
-                                other columns will be converted to floats.
-                        Optional:
+                    (default: 'TAB'). You can use the actual
+                    string e.g. '\\t' for 'TAB" or choose from:
+                    ('TAB', 'space')
+                string_values: A list of all the columns containing
+                    strings as values. All the
+                    other columns will be converted to floats.
+            Optional:
+                directed: True/False whether the interactions
+                        are directed or not.
 
-                            directed: True/False whether the interactions
-                                are directed or not.
+            If source is a filename
+                Optional:
+                    permitted_values: Default = {}
+                        If 'start_tag' is given, only interactions with
 
-                    If source is a filename
-                        Optional:
-                            permitted_values: Default = {}
-                                If 'start_tag' is given, only interactions with
+                        a start_tag bigger than this value
+                            will be considered.
 
-                                a start_tag bigger than this value
-                                    will be considered.
-
-                    If source is an EventQueue:
-                        Optional:
-                            T_start: The time/frame at which the scenario
-                                starts.
-                            T_end: The time/frame at which the scenario
-                                ends.
-                            nodes: List of considered nodes.
-                                Note: all other nodes are ignored as well as
-                                interactions with them.
+            If source is an EventQueue:
+                Optional:
+                    t_start: The time/frame at which the scenario
+                        starts.
+                    t_end: The time/frame at which the scenario
+                        ends.
+                    nodes: List of considered nodes.
+                        Note: all other nodes are ignored as well as
+                        interactions with them.
         :return:
         """
 
@@ -399,14 +418,8 @@ class TemporalGraph(_Graph):
                         delim = ' '
                     else:
                         delim = params[arg]
-                    setattr(self, '_file_delimiter', delim)
-                    del delim
-                if isinstance(params[arg], str):
-                    setattr(self, arg, params[arg])
-                elif isinstance(params[arg], (list, tuple)):
-                    setattr(self, arg, params[arg])
-                else:
-                    setattr(self, arg, params[arg])
+                    self._file_delimiter = delim
+                setattr(self, arg, params[arg])
             except KeyError:
                 raise InvalidArgumentError(
                         'The mandatory argument <%s> was not given.' % arg
@@ -478,8 +491,8 @@ class TemporalGraph(_Graph):
         _node2 = params.get('node2', 'node2')
         _tstart = params.get('t_start', 't_start')
         _tstop = params.get('t_stop', 't_stop')
-        _nstart = params.get('node_start', 'node_start')
-        _nend = params.get('node_end', 'node_end')
+        _nstart = params.get('first', 'first')
+        _nend = params.get('last', 'last')
         # mandatory arguments:
         try:
             self.starts = np.array(source[_start], dtype=np.float64)
@@ -497,8 +510,16 @@ class TemporalGraph(_Graph):
         # Optional part
         self.t_start = np.array(source.pop(_tstart, np.min(self.starts)))
         self.t_stop = np.array(source.pop(_tstop, np.max(self.stops)))
-        self.nodes_start = source.pop(_nstart, None)
-        self.nodes_end = source.pop(_nend, None)
+        # get node start and stop
+        self._nodes_start = {
+                _node: start
+                for _node, start in params.get('nodes_start', {}).items()
+                }
+        self._nodes_end = {
+                _node: end
+                for _node, end in params.get('nodes_end', {}).items()
+                }
+
 
         # If further data for the nodes is present, pass them to self.params
         self.host_params = source.get('host_params', {})
