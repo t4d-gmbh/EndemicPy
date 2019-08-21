@@ -189,6 +189,21 @@ class TemporalGraph(_Graph):
             :param key_mapping: optional dict to map custom keys of the contact
             sequence to the required keys, that are 'start', 'stop', 'node1'
             and 'node2'
+            :param t_start: Start of simulation (default: start time of
+                earliest event)
+            :param t_end: End of simulation (default: end time of last event)
+            :param nodes_start: Time of start and end of the life-span of
+                every node in the network. Allowed types:
+                dictionary: Keys correspond to the node IDs, Values to the time
+                    of start/end
+                array: Value at index i corresponds to the time of start/end of
+                    individual i
+            :param nodes_end: Time of start and end of the life-span of
+                every node in the network. Allowed types:
+                dictionary: Keys correspond to the node IDs, Values to the time
+                    of start/end
+                array: Value at index i corresponds to the time of start/end of
+                    individual i
         :return:
     """
     def __init__(
@@ -216,19 +231,19 @@ class TemporalGraph(_Graph):
                             )
             # ToDo: deal with the nodes contacts
             if events is not None:
-                events.sort(key=lambda x:x[event_keys['start']])
+                events.sort(key=lambda x: x[event_keys['start']])
                 self._node1s = [
                     an_event.get(event_keys['node1']) for an_event in events
                     ]
-                #self.node1s = [
-                #    Node.get_node(node)._id for node in self._node1s
-                #    ]
+                # self.node1s = [
+                #     Node.get_node(node)._id for node in self._node1s
+                #     ]
                 self._node2s = [
                     an_event.get(event_keys['node2']) for an_event in events
                     ]
-                #self.node2s = [
-                #    Node.get_node(node)._id for node in self._node2s
-                #    ]
+                # self.node2s = [
+                #     Node.get_node(node)._id for node in self._node2s
+                #     ]
                 # NOTE: other stage had get for self.starts and self.stops
                 self.starts = np.array([
                     an_event.pop(event_keys['start']) for an_event in events
@@ -248,77 +263,61 @@ class TemporalGraph(_Graph):
                 self._load_from_dict(source, **params.get('key_mapping', {}))
             else:  # source must be an EventQueue then
                 # todo: copy events that were passed by arguments
-                raise NotImplementedError('Provide either the path to a file' +
-                        ' or a dictionary as source')
+                raise NotImplementedError(
+                    'Provide either the path to a file' +
+                    ' or a dictionary as source'
+                )
             # ToDo: self.event_params is not filled
             self.event_params = []
             self.o_ids = list(np.union1d(self._node1s, self._node2s))
         # remap the node ids
         n = len(self.o_ids)
-        mapper = {val: key for key, val in enumerate(self.o_ids)}
-        get_element = lambda k: mapper.get(k)
-        v_get_id = np.vectorize(get_element)
+        self.key_mapper = {val: key for key, val in enumerate(self.o_ids)}
+
+        def map_key(self, k):
+            return self.key_mapper.get(k)
+
+        v_get_id = np.vectorize(map_key)
 
         # self.node1/2s is the list of 'usable' node ids.
         # self._node1/2s are the original node ids
         self.node1s = v_get_id(self._node1s)
         self.node2s = v_get_id(self._node2s)
 
-        # If nodes_start and nodes_end are specified in params, overwrite it
-        if 'nodes_start' in params:
-            self._nodes_start = params.get('nodes_start')
-        if 'nodes_end' in params:
-            self._nodes_end = params.get('nodes_end')
+        # set start and stop of simulations
+        self.t_start = params.get('t_start', np.min(self.starts))
+        self.t_stop = params.get('t_stop', np.min(self.stop))
 
-        if self._nodes_start not in [{}, None]:
-            self.nodes_start = {
-                    v_get_id(node): self._nodes_start[node]
-                    for node in self._nodes_start
-                    }
-        if self._nodes_end not in [{}, None]:
-            self.nodes_end = {
-                    v_get_id(node): self._nodes_end[node]
-                    for node in self._nodes_end
-                    }
-
-        self.t_start = params.get(
-                't_start',
-                np.min(self.starts) if self.t_start is None else self.t_start
-                )
-        self.t_stop = params.get(
-                't_stop',
-                np.max(self.stops) if self.t_stop is None else self.t_stop
-                )
-        _Graph.__init__(self, n=n)
-
-
-        # transform nodes_start and nodes_end into np.arrays if needed
-        if not (self.nodes_start is None or self.nodes_end is None):
-            if len(self.nodes_start) != n or len(self.nodes_end) != n:
-                InvalidArgumentError(
-                        'The <nodes_start> and <nodes_end> arguments have to '\
-                                'be of the same length as the total number of '\
-                                'unique nodes (n=%s)', str(self.n))
-            self._transform_nodes_start_end(v_get_id)
+        # get node start and stop
+        _nodes_start = params.get('nodes_start', None)
+        _nodes_end = params.get('nodes_end', None)
+        if _nodes_start is not None:
+            assert isinstance(_nodes_start, dict)
+            self._nodes_start = _nodes_start
             self.has_dynamic_nodes = True
         else:
-            # set to default values
-            self.nodes_start = np.repeat(self.t_start, n)
-            self.nodes_end = np.repeat(self.t_stop, n)
+            self._nodes_start = np.repeat(self.t_start, n)
+        if _nodes_end is not None:
+            assert isinstance(_nodes_end, dict)
+            self._nodes_end = _nodes_end
+            self.has_dynamic_nodes = True
+        else:
+            self._nodes_end = np.repeat(self.t_stop, n)
+
+        self._transform_nodes_start_end()
+
+        # If further data for the nodes is present, pass them to self.params
+        self.host_params = params.get('host_params', {})
 
         _Graph.__init__(self, n=n)
 
-    def _transform_nodes_start_end(self, vectorize_func):
+    def _transform_nodes_start_end(self):
         """
         Transform self.nodes_start and self.nodes_end into numpy arrays in
         which the value at position i is the value of individual i, defined by
         the vectorize function. If self.nodes_start and self.nodes_end are
         already numpy arrays, remap positions
 
-        Arguments:
-
-        :param vectorize_func: Maps an ID of general type (e.g. String) to an
-            integer in the space {0...n}, where n is the number of nodes
         :return:
         """
         if isinstance(
@@ -331,9 +330,9 @@ class TemporalGraph(_Graph):
             self.nodes_start = np.zeros(len(nodes_start))
             self.nodes_end = np.zeros(len(nodes_end))
             for node_name, val in nodes_start.items():
-                self.nodes_start[vectorize_func(node_name)] = val
+                self.nodes_start[self.map_key(node_name)] = val
             for node_name, val in nodes_end.items():
-                self.nodes_end[vectorize_func(node_name)] = val
+                self.nodes_end[self.map_key(node_name)] = val
 
         elif isinstance(
                 self.nodes_start, np.ndarray
@@ -343,14 +342,13 @@ class TemporalGraph(_Graph):
             # in this case self.o_ids has to be a list of integers with all
             # integer values up to n that map to positions in nodes_start and
             # nodes_end. Simply re-map positions...
-            self.nodes_start = self.nodes_start[vectorize_func(self.o_ids)]
-            self.nodes_end = self.nodes_end[vectorize_func(self.o_ids)]
+            self.nodes_start = self.nodes_start[self.map_key(self.o_ids)]
+            self.nodes_end = self.nodes_end[self.map_key(self.o_ids)]
         else:
             InvalidArgumentError(
-                    'The arguments <nodes_start> and <nodes_end> have to be '\
-                            'of type dict or numpy.array'
-                            )
-
+                    'The arguments <nodes_start> and <nodes_end> have to be '
+                    'of type dict or numpy.array'
+                    )
 
     def _load_from_file(self, source, **params):
         """
@@ -466,17 +464,6 @@ class TemporalGraph(_Graph):
             - node2: a list/array of IDs of interaction partner 2 for each
                 event
 
-            Optional:
-            - t_start: Start of simulation (default: start time of earliest
-                event)
-            - t_end: End of simulation (default: end time of last event)
-            - nodes_start/ nodes_end: Time of start and end of the life-span of
-                every node in the network. Allowed
-            types:
-                dictionary: Keys correspond to the node IDs, Values to the time
-                    of start/end
-                array: Value at index i corresponds to the time of start/end of
-                    individual i
 
         Parameters:
         -----------
@@ -507,22 +494,6 @@ class TemporalGraph(_Graph):
                         )
                     )
 
-        # Optional part
-        self.t_start = np.array(source.pop(_tstart, np.min(self.starts)))
-        self.t_stop = np.array(source.pop(_tstop, np.max(self.stops)))
-        # get node start and stop
-        self._nodes_start = {
-                _node: start
-                for _node, start in params.get('nodes_start', {}).items()
-                }
-        self._nodes_end = {
-                _node: end
-                for _node, end in params.get('nodes_end', {}).items()
-                }
-
-
-        # If further data for the nodes is present, pass them to self.params
-        self.host_params = source.get('host_params', {})
 
 
     # ToDo: will be replaced by _load_from_dict
