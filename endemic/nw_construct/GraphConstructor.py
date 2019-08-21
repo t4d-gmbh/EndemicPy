@@ -288,7 +288,7 @@ class TemporalGraph(_Graph):
 
         # set start and stop of simulations
         self.t_start = params.get('t_start', np.min(self.starts))
-        self.t_stop = params.get('t_stop', np.min(self.stop))
+        self.t_stop = params.get('t_stop', np.min(self.stops))
 
         # get node start and stop
         _nodes_start = params.get('nodes_start', None)
