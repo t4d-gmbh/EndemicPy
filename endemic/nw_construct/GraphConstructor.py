@@ -212,8 +212,8 @@ class TemporalGraph(_Graph):
             ):
         # _Graph.__init__(self)
         self.t_start, self.t_stop = None, None
-        self._nodes_start, self._nodes_stop = None, None
-        self.nodes_start, self.nodes_stop = None, None
+        self._nodes_start, self._nodes_end = None, None
+        self.nodes_start, self.nodes_end = None, None
         self.is_static = False
         self.has_dynamic_nodes = False
         # make type specific imports
@@ -295,13 +295,19 @@ class TemporalGraph(_Graph):
         _nodes_end = params.get('nodes_end', None)
         if _nodes_start is not None:
             assert isinstance(_nodes_start, dict)
-            self._nodes_start = _nodes_start
+            self._nodes_start = {
+                k:v for k,v in _nodes_start.items()
+                if k in self.o_ids
+            }
             self.has_dynamic_nodes = True
         else:
             self._nodes_start = np.repeat(self.t_start, n)
         if _nodes_end is not None:
             assert isinstance(_nodes_end, dict)
-            self._nodes_end = _nodes_end
+            self._nodes_end = {
+                k:v for k,v in _nodes_end.items()
+                if k in self.o_ids
+            }
             self.has_dynamic_nodes = True
         else:
             self._nodes_end = np.repeat(self.t_stop, n)
@@ -330,13 +336,9 @@ class TemporalGraph(_Graph):
             self.nodes_start = np.zeros(len(self._nodes_start))
             self.nodes_end = np.zeros(len(self._nodes_end))
             for node_name, val in self._nodes_start.items():
-                print '\n'
-                print (node_name, val, self.map_key(node_name))
                 self.nodes_start[self.map_key(node_name)] = val
-                print (self._nodes_start[node_name], self.nodes_start[self.map_key(node_name)])
             for node_name, val in self._nodes_end.items():
                 self.nodes_end[self.map_key(node_name)] = val
-            import ipdb; ipdb.set_trace() # BREAKPOINT
 
         elif isinstance(
                 self._nodes_start, np.ndarray
