@@ -326,21 +326,23 @@ class TemporalGraph(_Graph):
                 self._nodes_start, dict
                 ) and isinstance(
                         self._nodes_end, dict
-                        ):
-            nodes_start = copy(self._nodes_start)
-            nodes_end = copy(self._nodes_end)
-            self.nodes_start = np.zeros(len(nodes_start))
-            self.nodes_end = np.zeros(len(nodes_end))
-            for node_name, val in nodes_start.items():
+            ):
+            self.nodes_start = np.zeros(len(self._nodes_start))
+            self.nodes_end = np.zeros(len(self._nodes_end))
+            for node_name, val in self._nodes_start.items():
+                print '\n'
+                print (node_name, val, self.map_key(node_name))
                 self.nodes_start[self.map_key(node_name)] = val
-            for node_name, val in nodes_end.items():
+                print (self._nodes_start[node_name], self.nodes_start[self.map_key(node_name)])
+            for node_name, val in self._nodes_end.items():
                 self.nodes_end[self.map_key(node_name)] = val
+            import ipdb; ipdb.set_trace() # BREAKPOINT
 
         elif isinstance(
                 self._nodes_start, np.ndarray
                 ) and isinstance(
                         self._nodes_end, np.ndarray
-                        ):
+            ):
             # in this case self.o_ids has to be a list of integers with all
             # integer values up to n that map to positions in nodes_start and
             # nodes_end. Simply re-map positions...
