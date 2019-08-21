@@ -11,10 +11,9 @@ class ContactStructure():
 
     class UniqueIDError(Exception):
         pass
-    
+
     class ImplementationMissingError(Exception):
         pass
-
 
     def __init__(
             self, from_object, susceptible=1, is_static=True,
@@ -26,12 +25,12 @@ class ContactStructure():
         self.has_dynamic_nodes = has_dynamic_nodes
         # if any susceptibility information is missing, it will be completed
         # with this value.
-        suscept_default = 1 
+        suscept_default = 1
         # match between the original ids of the nodes (values) and the newly
         # generated ones (index)
-        self.o_ids = []  
+        self.o_ids = []
         # assume it is a list of Host objects:
-        if isinstance(from_object, list): 
+        if isinstance(from_object, list):
             len_hosts = len(from_object)
             if self.is_static:
                 self.nn = [[] for _ in xrange(len_hosts)]
@@ -53,7 +52,7 @@ class ContactStructure():
                     self.nn[its_id] = a_host.neighbours
                 its_default = suscept_default
                 susceptibility = a_host.susceptible if \
-                        a_host.susceptible is not None else its_default
+                    a_host.susceptible is not None else its_default
                 if isinstance(susceptibility, dict):
                     if 'Default' in susceptibility:
                         its_default = susceptibility.pop('Default')
@@ -62,7 +61,7 @@ class ContactStructure():
                         self._susceptible[
                                 its_id
                                 ][strain_name] = susceptibility[strain_name]
-                        #self.susceptible[its_id] = a_host.susceptible
+                        # self.susceptible[its_id] = a_host.susceptible
                 elif type(susceptibility) is float or \
                         type(susceptibility) is int:
                     self._susceptible[its_id] = {
@@ -76,12 +75,12 @@ class ContactStructure():
             index_keys = inv_id_map.keys()
             index_keys.sort()
             self.o_ids = [inv_id_map[a_key] for a_key in index_keys]
-            #raise self.ImplementationMissingError(
-            #"""
-            #    Creating a ContactStructure with a list of 'temporal'
-            #    Host objects is not implemented.
-            #"""
-            #)
+            # raise self.ImplementationMissingError(
+            # """
+            #     Creating a ContactStructure with a list of 'temporal'
+            #     Host objects is not implemented.
+            # """
+            # )
         # it is a _Graph object
         # to do: set condition on being of _Graph class (with super?)
         elif True:
@@ -123,7 +122,7 @@ class ContactStructure():
             raise AttributeError(
                 """
                     Neither a graph nor a lists of hosts is provided.\n\n%s
-                """% self.__doc__
+                """ % self.__doc__
             )
         self.graph_info = {}
         # this is only filled up in the Scenario class in the Spreading module.
@@ -159,13 +158,13 @@ class ContactNetwork(ContactStructure):
             an argument.
             Note that if a list of _hosts is provided, they need to have the
             neighbours argument filled, otherwise no network is constructed.
-            
+
         :type susceptible: int, dict, list, float
         Parameters:
         -----------
         :params graph: an object from the graph class defined in the
             nw_construct package.
-            
+
         :params hosts: a list of Host objects.
                 Note: If hosts is provided the argument 'susceptible' is
                 ignored.
@@ -196,9 +195,11 @@ class ContactNetwork(ContactStructure):
 
     def update_topology(self, graph):
         """
-        This method takes a new topology and updates the contact network accordingly.
-        Note: the parameter graph must be a Graph from nw_construct module that shares the same properties
-        as the previousely defined contact_structure, with the exception of the node linking.
+        This method takes a new topology and updates the contact network
+        accordingly.
+        Note: the parameter graph must be a Graph from nw_construct module
+        that shares the same properties as the previousely defined
+        contact_structure, with the exception of the node linking.
 
         Usage e.g.:
             my_graph = nw_construct.Graph(...)
