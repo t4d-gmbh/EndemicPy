@@ -2182,7 +2182,7 @@ class Scenario():
                     #    self.log[
                     #        round(self.t, self._log_time_rounding)
                     # ].append(copy(self.current_view))
-                    #TODO: was alternative
+                    # TODO: was alternative
                     # self.log[
                     #     round(self.t, self._log_time_rounding)
                     # ].append(self.get_current_view)
@@ -2194,7 +2194,8 @@ class Scenario():
                     (time, n_event) = self.queue.get_nowait()
                     # update the time of the scenario
                     self.t = round(time, self._time_rounding)
-                    #self._counts_over_time[int(self.t)] = self._count_per_strains
+                    # self._counts_over_time[
+                    #     int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
                     event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
@@ -2237,19 +2238,22 @@ class Scenario():
                                         round(self.t, self._log_time_rounding)
                                         ].append(copy(self.current_view))
                         t_next_bin += dt
-                        # check if we are in _quasistable state (QSS) if yes, stop the sim
-                        #if self._quasistable(focus_strain_ids, surviving_strain_ids):
+                        # check if we are in _quasistable state (QSS) if yes,
+                        # stop the sim
+                        # if self._quasistable(focus_strain_ids,
+                        # surviving_strain_ids):
                         if break_condition(targeted_strains):
                             halt = True
                             # if we were not logging, write to the log now.
-                            # this should not be needed as we will write in the self.outcome as soon as the phase stops
+                            # this should not be needed as we will write in the
+                            # self.outcome as soon as the phase stops
                             # if not with_logging:
                             #     self.log[
                             #         round(self.t, self._log_time_rounding)
                             #     ].append(copy(self.current_view))
                 # if no more events are to handle the sim is over (obviously)
                 except Empty:
-                    # we don't write into to log as we'll write into self.outcome
+                    # we don't write into to log we'll write into self.outcome
                     # self.log[
                     #     round(self.t, self._log_time_rounding)
                     # ].append(copy(self.current_view))
@@ -2268,10 +2272,17 @@ class Scenario():
             else:
                 rel_cond = None
             if abs_cond:
-                abs_id_stop_cond = {self.pathogen.ids[name]: abs_cond[name] for name in abs_cond}
-                # building_status = {_id: self._count_per_strains[_id] for _id in abs_id_stop_cond}
+                abs_id_stop_cond = {
+                    self.pathogen.ids[name]: abs_cond[name]
+                    for name in abs_cond
+                }
+                # building_status = {_id: self._count_per_strains[_id] for _id
+                # in abs_id_stop_cond}
                 # check if the stop condition is already met
-                if any(self._count_per_strains[_id] >= abs_id_stop_cond[_id] for _id in abs_id_stop_cond):
+                if any(
+                    self._count_per_strains[_id] >= abs_id_stop_cond[_id]
+                    for _id in abs_id_stop_cond
+                ):
                     return 0
             if rel_cond:
                 rel_id_stop_cond = {}
@@ -2279,60 +2290,90 @@ class Scenario():
                     _id = self.pathogen.ids[name]
                     if 'total' in rel_cond[name][1]:
                         if rel_cond[name][1] == 'total_infected':
-                            # put the condition on the total set of present pathogens
-                            rel_id_stop_cond[_id] = (rel_cond[name][0], self.pathogen.ids.values())
-                            # if building up criterion is met already, stop the phase
-                            if self._count_per_strains[_id] >= rel_id_stop_cond[_id][0] * sum(
-                                    [self._count_per_strains[path_id] for path_id in self.pathogen.ids.values()]
+                            # put condition on total set of present pathogens
+                            rel_id_stop_cond[_id] = (
+                                rel_cond[name][0],
+                                self.pathogen.ids.values()
+                            )
+                            # if building up criterion is met, stop the phase
+                            if self._count_per_strains[
+                                _id] >= rel_id_stop_cond[_id][0] * sum(
+                                    [self._count_per_strains[path_id]
+                                     for path_id in self.pathogen.ids.values()]
                             ):
                                 return 0
                         else:
                             rel_id_stop_cond[_id] = (rel_cond[name][0], 'all')
-                            # if building up criterion is met already, stop the phase
-                            if self._count_per_strains[_id] >= rel_id_stop_cond[_id][0] * self.contact_structure.n:
+                            # if building up criterion is met already, stop
+                            # the phase
+                            if self._count_per_strains[
+                                _id] >= rel_id_stop_cond[
+                                    _id][0] * self.contact_structure.n:
                                 return 0
                     else:
                         rel_id_stop_cond[_id] = (
-                            rel_cond[name][0], self.pathogen.ids[rel_cond[name][1]]
+                            rel_cond[name][0],
+                            self.pathogen.ids[rel_cond[name][1]]
                         )
                         # if the condition is matched already end phase
                         if self._count_per_strains[
                             _id
-                        ] >= rel_id_stop_cond[_id][0] * self._count_per_strains[rel_id_stop_cond[_id][1]]:
+                        ] >= rel_id_stop_cond[
+                            _id][0] * self._count_per_strains[
+                                rel_id_stop_cond[_id][1]]:
                             return 0
                 # rel_id_stop_cond = {
-                #    self.pathogen.ids[name]: (rel_cond[name][0], self.pathogen.ids[rel_cond[name][1]])
+                #    self.pathogen.ids[name]: (
+                #        rel_cond[name][0],
+                #        self.pathogen.ids[rel_cond[name][1]]
+                #        )
                 #    for name in rel_cond
                 # }
                 # if any(
                 #        self._count_per_strains[_id] >=
-                #        rel_id_stop_cond[_id][0] * self._count_per_strains[rel_id_stop_cond[_id][1]]
+                #        rel_id_stop_cond[
+                #             _id][0] * self._count_per_strains[
+                #                  rel_id_stop_cond[_id][1]]
                 #        for _id in rel_id_stop_cond):
                 #    return 0
-            # clarify which type of condition is active and define appropriate tests:
-            # to do: revert back to using self._count_per_strains as soon as count_per_strains is reliable again
+            # clarify which type of condition is active and define
+            # appropriate tests:
+            # to do: revert back to using self._count_per_strains as soon as
+            # count_per_strains is reliable again
             if not abs_cond and rel_cond:
                 def test_cond(self):
                     for s_id in rel_id_stop_cond:
                         condition = rel_id_stop_cond[s_id][1]
-                        ref_val = condition if type(condition) in [float, int] else (
+                        ref_val = condition if type(
+                            condition) in [float, int] else (
                             sum(
-                                # self.current_view.count(strain_id) for strain_id in self.pathogen.ids.values()
-                                self._count_per_strains[strain_id] for strain_id in self.pathogen.ids.values()
-                            ) if type(condition) is list else self.contact_network.n
+                                # self.current_view.count(strain_id)
+                                # for strain_id in self.pathogen.ids.values()
+                                self._count_per_strains[strain_id]
+                                for strain_id in self.pathogen.ids.values()
+                            )
+                            if type(condition) is list
+                            else self.contact_network.n
                         )
-                        if self._count_per_strains[s_id] >= rel_id_stop_cond[s_id][0] * ref_val:
-                        #TODO: was alternative
-                        # if self.current_view.count(s_id) >= rel_id_stop_cond[s_id][0] * ref_val:
-                            print 'reached fraction', self._count_per_strains, [
-                                self.current_view.count(i) for i in self.pathogen.ids.values()
+                        if self._count_per_strains[s_id] >= rel_id_stop_cond[
+                            s_id
+                        ][0] * ref_val:
+                            # TODO: was alternative
+                            # if self.current_view.count(s_id) >=
+                            # rel_id_stop_cond[s_id][0] * ref_val:
+                            print 'reached fract.', self._count_per_strains, [
+                                self.current_view.count(i)
+                                for i in self.pathogen.ids.values()
                             ]
-                            # if we stop, we need to provide a new starting time for the next phase
+                            # if we stop, we need to provide a new starting
+                            # time for the next phase
                             self._phase_passon = {'t_start': self.t}
                             return 1
                     # if any(
                     #        self._count_per_strains[_id] >=
-                    #        rel_id_stop_cond[_id][0] * self._count_per_strains[rel_id_stop_cond[_id][1]]
+                    #        rel_id_stop_cond[
+                    #            _id][0] * self._count_per_strains[
+                    #                 rel_id_stop_cond[_id][1]]
                     #        for _id in rel_id_stop_cond):
                     #    self._phase_passon = {'t_start': self.t}
                     #    return 1
