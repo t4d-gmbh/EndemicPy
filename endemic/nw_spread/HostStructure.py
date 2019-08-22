@@ -81,7 +81,7 @@ class ContactStructure():
 
         if susceptible is not None or import_object == 2:
             self.set_susceptibility(
-                    self, susceptible, import_object, from_object
+                    susceptible, import_object, from_object
                     )
 
         self.graph_info = {}
