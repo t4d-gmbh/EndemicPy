@@ -694,8 +694,6 @@ class Scenario():
     class WrongImplementationError(Exception):
         pass
 
-    # this is an internal method (_...) so the idea is to never explicitly
-    # having to call this method.
     # TODO: This method had major conflicts in the last merge > TO CHECK
     def _initiate_infection(self, strain, ):
         """
@@ -865,9 +863,7 @@ class Scenario():
                 if len(candidate_nodes) < 1:
                     raise self.InitiateInfectionError(
                             """
-
- No host at time %s to be infected.
-
+                            No host at time %s to be infected.
                             """ % a_t_inf
                             )
                 # now for all the infection times we have a set of present
