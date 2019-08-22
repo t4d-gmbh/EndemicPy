@@ -1641,7 +1641,7 @@ class Scenario():
         for _i in xrange(len(phases)):
             phase = deepcopy(phases[_i])
             # get or set a new seed for this phase
-            self.seed = phase.get('seed', None)
+            self.seed = self._set_seed(phase.get('seed', None))
             # update the seed in the phases log (if no seed was provided use
             # the one generated just before
             self.simulation_log['scenario'][-1][_i]['seed'] = self.seed
