@@ -1,6 +1,7 @@
 __author__ = 'Jonas I Liechti'
 import random
 import pickle
+from collections import defaultdict
 from numpy import vectorize, array, where, absolute, zeros, count_nonzero
 from numpy import random as nrand
 from numpy import copy as n_copy
@@ -70,7 +71,7 @@ class Scenario():
         """
         # this will store self.current_view at various times
         # Note: this will be replaced with self.outcome so feel free to ignore
-        self.log = {}
+        self.log = defaultdict(list)
         # holds detailed information about what happened during a simulation
         self.simulation_log = {
             # holds a dict with all the setup parameters at the starting time
@@ -499,13 +500,14 @@ class Scenario():
         :param graph: Graph object from the nw_construct package
         :return:
         """
-        self.log = {}
+        self.log = defaultdict(list)
         self.simulation_log = {
             'phases': {},
             'mutations': [],
             'adjacency': {},
             'modifications': {},
-            'param_alternation': {}
+            'param_alternation': {},
+            'seed': None
         }
         self.outcome = {}
         self.t = self.contact_structure.t_start if not \
@@ -1478,6 +1480,7 @@ class Scenario():
         You might just specify a single task for a phase or several but in
         order to keep things tractable, use as few tasks as possible for a
         phase.
+        All tasks
         Below are all possible tasks listed.
 
         Possible tasks:
@@ -1555,7 +1558,7 @@ class Scenario():
                 opened in append mode so to be able to write several phases
                 into the same file. Be sure to change the file name for each
                 run as otherwise several runs might be written into the same
-                file. 
+                file.
             'shuffle': dict. with 'source', 'target', 'substitute' and 'mode':
                 This task will shuffle in the specified way the infection
                 status of hosts.
@@ -1628,6 +1631,8 @@ class Scenario():
                 You'll need to provide the 'with_treatment': True task to run
                 the simulation with a treatment.
         """
+        # set the seed
+        self.seed = self._set_seed(seed)
         try:
             self.simulation_log['scenario'].append(phases)
         except KeyError:
@@ -1635,7 +1640,13 @@ class Scenario():
         self.simulation_log['adjacency'][self.t] = self.contact_structure.nn
         # issue: should the adjacency be written in each phase?
         self._update_phase_in_sim_log()
-        for phase in deepcopy(phases):
+        for _i in xrange(len(phases)):
+            phase in deepcopy(phases[_i])
+            # get or set a new seed for this phase
+            self.seed = phase.get('seed', None)
+            # update the seed in the phases log (if no seed was provided use
+            # the one generated just before
+            self.simulation_log['scenario'][-1][_i]['seed'] = self.seed
             with_run = True  # will call self._run for this phase
             # check if previous phase imposes parameters:
             if self._phase_passon:
@@ -1991,17 +2002,20 @@ class Scenario():
                     # it exists.
                     self._inf_file_o = None
             self._update_phase_in_sim_log()
-            # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-            # Note: There are quite some implications when passing the after_phase_outcome
-            #   to both the Scenario.log and the Scenario.outcome, changing one will also change the
-            #   other.
+            # self.log[round(self.t, self._log_time_rounding)].append(
+            #     copy(self.current_view)
+            # )
+            # Note: There are quite some implications when passing the
+            # after_phase_outcome to both the Scenario.log and the
+            # Scenario.outcome, changing one will also change the other.
             after_phase_outcome = self.get_outcome
-            # To Do: This might overwrite an existing entry (if self.t does not change)
             self.log[
                     round(self.t, self._log_time_rounding)
-                    ] = after_phase_outcome
+                    ].append(after_phase_outcome)
             # TODO: was an option
-            # self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
+            # self.log[
+            #     round(self.t, self._log_time_rounding)
+            # ].append(self.get_current_view)
             try:
                 self.outcome[self.t].append(after_phase_outcome)
             except (KeyError, AttributeError):
@@ -2167,11 +2181,17 @@ class Scenario():
                         break
                 except Empty:
                     # if logger_mode == 1:
-                    self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                    self.log[
+                            round(self.t, self._log_time_rounding)
+                            ].append(self.get_outcome)
                     # elif logger_mode == 2:
-                    #    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    #    self.log[
+                    #        round(self.t, self._log_time_rounding)
+                    # ].append(copy(self.current_view))
                     #TODO: was alternative
-                    # self.log[round(self.t, self._log_time_rounding)] = self.get_current_view
+                    # self.log[
+                    #     round(self.t, self._log_time_rounding)
+                    # ].append(self.get_current_view)
                     break
             """
             while self.t < t_stop and not done:
@@ -2190,7 +2210,9 @@ class Scenario():
                             if not self.current_view.count(strain_id):
                                 break
                 except Empty:
-                    self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                    self.log[
+                        round(self.t, self._log_time_rounding)
+                    ].append(copy(self.current_view))
                     break
             """
         logger_mode = params.get('explicit', 0)
@@ -2213,9 +2235,13 @@ class Scenario():
                     if self.t >= t_next_bin:
                         if logger_mode:
                             if logger_mode == 1:
-                                self.log[round(self.t, self._log_time_rounding)] = self.get_outcome
+                                self.log[
+                                        round(self.t, self._log_time_rounding)
+                                        ].append(self.get_outcome)
                             elif logger_mode == 2:
-                                self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                                self.log[
+                                        round(self.t, self._log_time_rounding)
+                                        ].append(copy(self.current_view))
                         t_next_bin += dt
                         # check if we are in _quasistable state (QSS) if yes, stop the sim
                         #if self._quasistable(focus_strain_ids, surviving_strain_ids):
@@ -2224,12 +2250,16 @@ class Scenario():
                             # if we were not logging, write to the log now.
                             # this should not be needed as we will write in the self.outcome as soon as the phase stops
                             # if not with_logging:
-                            #     self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
+                            #     self.log[
+                            #         round(self.t, self._log_time_rounding)
+                            #     ].append(copy(self.current_view))
                 # if no more events are to handle the sim is over (obviously)
                 except Empty:
                     # we don't write into to log as we'll write into self.outcome
-                    # self.log[round(self.t, self._log_time_rounding)] = copy(self.current_view)
-                    #TODO: Probably something missing
+                    # self.log[
+                    #     round(self.t, self._log_time_rounding)
+                    # ].append(copy(self.current_view))
+                    # TODO: Probably something missing
                     break
         # if we are in the case where a strain should build up its prevalence
         elif 'building_up' in params:
@@ -2354,21 +2384,21 @@ class Scenario():
                             if logger_mode == 1:
                                 self.log[
                                         round(self.t, self._log_time_rounding)
-                                        ] = self.get_outcome
+                                        ].append(self.get_outcome)
                             elif logger_mode == 2:
                                 self.log[
                                         round(self.t, self._log_time_rounding)
-                                        ] = copy(self.current_view)
+                                        ].append(copy(self.current_view))
 
                             self.log[
                                     round(self.t, self._log_time_rounding)
-                                    ] = copy(self.current_view)
+                                    ].append(copy(self.current_view))
                             while self.t >= t_next_bin:
                                 t_next_bin += dt
                             # TODO: alt
                             # self.log[
                             #     round(self.t, self._log_time_rounding)
-                            # ] = self.get_current_view
+                            # ].append(self.get_current_view)
                         if test_cond(self):
                             return 0
                     except Empty:
@@ -2376,15 +2406,15 @@ class Scenario():
                         if logger_mode == 1:
                             self.log[
                                     round(self.t, self._log_time_rounding)
-                                    ] = self.get_outcome
+                                    ].append(self.get_outcome)
                         elif logger_mode == 2:
                             self.log[
                                     round(self.t, self._log_time_rounding)
-                                    ] = copy(self.current_view)
+                                    ].append(copy(self.current_view))
                         # TODO: alternative
                         # self.log[
                         #     round(self.t, self._log_time_rounding)
-                        # ] = self.get_current_view
+                        # ].append(self.get_current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -2398,11 +2428,11 @@ class Scenario():
                     except Empty:
                         self.log[
                                 round(self.t, self._log_time_rounding)
-                                ] = self.get_outcome
+                                ].append(self.get_outcome)
                         # TODO: alternative
                         # self.log[
                         #     round(self.t, self._log_time_rounding)
-                        # ] = self.get_current_view
+                        # ].append(self.get_current_view)
                         break
         # if there was neither a halt condition nor a building_up, this part
         # will conduct the simulation
@@ -2419,26 +2449,26 @@ class Scenario():
                             if logger_mode == 1:
                                 self.log[
                                         round(self.t, self._log_time_rounding)
-                                        ] = self.get_outcome
+                                        ].append(self.get_outcome)
                             elif logger_mode == 2:
                                 self.log[
                                         round(self.t, self._log_time_rounding)
-                                        ] = copy(self.current_view)
+                                        ].append(copy(self.current_view))
                             while self.t >= t_next_bin:
                                 t_next_bin += dt
                     except Empty:
                         if logger_mode == 1:
                             self.log[
                                     round(self.t, self._log_time_rounding)
-                                    ] = self.get_outcome
+                                    ].append(self.get_outcome)
                         elif logger_mode == 2:
                             self.log[
                                     round(self.t, self._log_time_rounding)
-                                    ] = copy(self.current_view)
+                                    ].append(copy(self.current_view))
                             # TODO: alternative
                             # self.log[
                             #     round(self.t, self._log_time_rounding)
-                            # ] = self.get_current_view
+                            # ].append(self.get_current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -2449,14 +2479,14 @@ class Scenario():
                     except Empty:
                         # self.log[
                         #     round(self.t, self._log_time_rounding)
-                        # ] = copy(self.current_view)
+                        # ].append(copy(self.current_view))
                         self.log[
                                 round(self.t, self._log_time_rounding)
-                                ] = self.get_outcome
+                                ].append(self.get_outcome)
                         # TODO: alternative
                         # self.log[
                         #     round(self.t, self._log_time_rounding)
-                        # ] = self.get_current_view
+                        # ].append(self.get_current_view)
                         break
         # print 'treatment', with_treatment
         return 0
@@ -2720,6 +2750,8 @@ class Scenario():
         Should be strain specific:
         {time1:
             {
+                'seed': numpy.random.seed # that was set at the beginning of
+                    the phase
                 'network': {
                         'n': size,
                         'degree_count': {0: how many nodes with deg 0
@@ -2743,6 +2775,9 @@ class Scenario():
          time2: ...
          }
         """
+        _output = {
+                'seed': self.seed
+                }
         if self.contact_structure.is_static:
             # ToDo: the degree should be directly accessible from
             # self.contact_structure
@@ -2761,12 +2796,10 @@ class Scenario():
                 nodes_per_degree[degrees[node_id]].append(node_id)
             for a_degree in observed_degrees:
                 degree_count[a_degree] = len(nodes_per_degree[a_degree])
-            _output = {
-                'network': {
+            _output['network'] = {
                     'n': self.contact_structure.n,
                     'degree_count': degree_count,
                 }
-            }
 
             for strain_id in self.pathogen.names.keys():
                 name = self.pathogen.names[strain_id]
@@ -2790,12 +2823,12 @@ class Scenario():
                 _output[name]['degree_acquired'] = copy(strain_degree_acquired)
         else:
             # ToDo: report some info about the current network
-            _output = {
-                # 'network': {
-                #     'n': self.contact_structure.n,
-                #     'degree_count': degree_count,
-                # }
-            }
+            # _output = {
+            # 'network': {
+            #     'n': self.contact_structure.n,
+            #     'degree_count': degree_count,
+            # }
+            # }
             for strain_id in self.pathogen.names.keys():
                 # report active nodes
                 name = self.pathogen.names[strain_id]

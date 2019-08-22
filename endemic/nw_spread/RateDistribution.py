@@ -3,7 +3,7 @@ from Queue import Queue as SimpleQueue
 import sys
 import numpy.random as n_rand
 from numpy import ndarray
-from numpy import array, float64 
+from numpy import array, float64
 
 # this is the time it takes if a rate of 0 is given
 MAX_LIM = 100000
@@ -76,9 +76,11 @@ class Distro(object):
         DEFAULT_VALUES['scale'],
         DEFAULT_VALUES['loc']
         )
-    def __init__(self,
+    def __init__(
+            self,
             distribution_type='exp',
-            **kwargs):
+            **kwargs
+    ):
         self.distribution_type = distribution_type
         self._init_draw_fct(**kwargs)
         self.queue = SimpleQueue(maxsize=self._dist_params['size'])
@@ -113,7 +115,7 @@ class Distro(object):
                 'loc': get_value(kwargs, 'loc')
                 }
             if self._dist_params['scale'] == 0:
-                #TOIMPLEMENT
+                # TOIMPLEMENT
                 # We are at a dirak delta
                 pass
         else:

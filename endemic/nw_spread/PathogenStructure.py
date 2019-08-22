@@ -1,3 +1,4 @@
+import re
 from RateDistribution import Distro
 
 #this is passed as the scale parameter if rate == 0 - see Distro.fillup() for details.
@@ -203,7 +204,7 @@ class Strain():
     def __init__(self, name, transmission_rate, recover_rate, recover_type=1, selection_rate=None, ):
         """
         This class defines a single strain.
-        
+
         Arguments:
             - name: An unique identifier for a strain.
                 NOTE: It is assumed that name=0 is the wild type.
@@ -228,12 +229,16 @@ class Strain():
                     A selection rate of 0 means no selection.
         """
         self.name = name
-        self.b = transmission_rate
+        self.b = transmission_rate if isinstance(
+                transmission_rate, (float, int)
+                ) else self._to_rate(transmission_rate)
         try:
             self.b_dist = Distro(self.b ** (-1), 10000)
         except ZeroDivisionError:
             self.b_dist = Distro(NO_RATE_FLAG, 10000)
-        self.g = recover_rate
+        self.g = recover_rate if isinstance(
+                recover_rate, (float, int)
+                ) else self._to_rate(recover_rate)
         try:
             self.g_dist = Distro(self.g ** (-1), 10000)
         except ZeroDivisionError:
@@ -247,4 +252,55 @@ class Strain():
             self.s = {'Default': 0}
         self.recover_type = recover_type
 
-    #write get_val functions for the different rates...is presumably faster than calling the fct form the Distro class
+    def _to_sec(self, a_time):
+        """
+            Converts a time into seconds
+
+            Parameters:
+            -----------
+
+            :param a_time: string of the form 'y.yx', with 'y.y' being a
+                number and 'x' the unit. E.g. '1.2min', '3d'
+                Possible units are:
+                - 'sec' for seconds
+                - 'min' of minutues
+                - 'h' for hours
+                - 'd' for days
+
+        """
+        times = re.findall("[-+]?\d*\.\d+|\d+", a_time)
+        to_convert = float(times[0])
+        a_time.replace(' ', '')
+        if 'sec' in a_time:
+            pass
+        elif 'min' in a_time:
+            to_convert *= 60
+        elif 'h' in a_time:
+            to_convert *= 60*60
+        elif 'd' in a_time:
+            to_convert *= 24*60*60
+        # if no valid unit provided, seconds are assumed.
+        else:
+            pass
+        return to_convert
+
+    def _to_rate(self, exp_time):
+        """
+            Give the expected time between events.
+
+            Parameters:
+            -----------
+
+            :param exp_time: string of the form 'y.yx', with 'y.y' being a
+                number and 'x' the unit. E.g. '1.2min', '3d'
+                Possible units are:
+                - 'sec' for seconds
+                - 'min' of minutues
+                - 'h' for hours
+                - 'd' for days
+
+        """
+        return 1 / self._to_sec(exp_time)
+
+        # write get_val functions for the different rates...is presumably
+        # faster than calling the fct form the Distro class

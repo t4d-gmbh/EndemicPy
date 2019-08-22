@@ -3,20 +3,9 @@ import numpy as np
 
 
 class ContactStructure():
-    class HostOrderError(Exception):
-        pass
-
-    class IncompatibleSusceptibilityError(Exception):
-        pass
-
-    class UniqueIDError(Exception):
-        pass
-
-    class ImplementationMissingError(Exception):
-        pass
 
     def __init__(
-            self, from_object, susceptible=1, is_static=True,
+            self, from_object, susceptible=None, is_static=True,
             has_dynamic_nodes=False
             ):
         # whether this is a static or a dynamic (time explicit network)
@@ -25,12 +14,15 @@ class ContactStructure():
         self.has_dynamic_nodes = has_dynamic_nodes
         # if any susceptibility information is missing, it will be completed
         # with this value.
-        suscept_default = 1
+        self._suscept_default = 1
+        # what object is used:
+        import_object = None  # 2: List of hosts, 1: Graph or TempGraph
         # match between the original ids of the nodes (values) and the newly
         # generated ones (index)
         self.o_ids = []
         # assume it is a list of Host objects:
         if isinstance(from_object, list):
+            import_object = 2
             len_hosts = len(from_object)
             if self.is_static:
                 self.nn = [[] for _ in xrange(len_hosts)]
@@ -43,35 +35,18 @@ class ContactStructure():
             self._hosts.sort()
             self.n = len(self._hosts)  # gives the number of hosts
             self._check_integrity()
-            id_map = {}
+            self._id_map = {}
             for val in self._hosts:
-                id_map[val] = self._hosts.index(val)
+                self._id_map[val] = self._hosts.index(val)
             for a_host in from_object:
-                its_id = id_map[a_host._id]
+                its_id = self._id_map[a_host._id]
                 if self.is_static:
                     self.nn[its_id] = a_host.neighbours
-                its_default = suscept_default
-                susceptibility = a_host.susceptible if \
-                    a_host.susceptible is not None else its_default
-                if isinstance(susceptibility, dict):
-                    if 'Default' in susceptibility:
-                        its_default = susceptibility.pop('Default')
-                    self._susceptible[its_id]['Default'] = its_default
-                    for strain_name in susceptibility.keys():
-                        self._susceptible[
-                                its_id
-                                ][strain_name] = susceptibility[strain_name]
-                        # self.susceptible[its_id] = a_host.susceptible
-                elif type(susceptibility) is float or \
-                        type(susceptibility) is int:
-                    self._susceptible[its_id] = {
-                            'Default': susceptibility
-                            }
-            _hosts = id_map.values()
+            _hosts = self._id_map.values()
             _hosts.sort()
             self._hosts = _hosts
             # create the original ID's list
-            inv_id_map = {v: k for k, v in id_map.iteritems()}
+            inv_id_map = {v: k for k, v in self._id_map.iteritems()}
             index_keys = inv_id_map.keys()
             index_keys.sort()
             self.o_ids = [inv_id_map[a_key] for a_key in index_keys]
@@ -84,6 +59,7 @@ class ContactStructure():
         # it is a _Graph object
         # to do: set condition on being of _Graph class (with super?)
         elif True:
+            import_object = 1
             self.is_static = from_object.is_static
             self.graph_info = from_object.info
             self.o_ids = from_object.o_ids
@@ -96,15 +72,56 @@ class ContactStructure():
                 self.nn = from_object.nn
             else:
                 self.nn = None
+        else:
+            raise AttributeError(
+                """
+                    Neither a graph nor a lists of hosts is provided.\n\n%s
+                """ % self.__doc__
+            )
+
+        if susceptible is not None or import_object == 2:
+            self.set_susceptibility(
+                    self, susceptible, import_object, from_object
+                    )
+
+        self.graph_info = {}
+
+    def set_susceptibility(self, susceptible, import_object, from_object):
+        if import_object == 2:
+            for a_host in from_object:
+                its_id = self._id_map[a_host._id]
+
+                # ###
+                # ###
+                # ###
+                its_default = self._suscept_default
+                susceptibility = a_host.susceptible if \
+                    a_host.susceptible is not None else its_default
+                if isinstance(susceptibility, dict):
+                    its_default = susceptibility.pop(
+                            "Default", self._suscept_default
+                            )
+                    self._susceptible[its_id]['Default'] = its_default
+                    for strain_name in susceptibility.keys():
+                        self._susceptible[
+                                its_id
+                                ][strain_name] = susceptibility[strain_name]
+                        # self.susceptible[its_id] = a_host.susceptible
+                elif type(susceptibility) is float or \
+                        type(susceptibility) is int:
+                    self._susceptible[its_id] = {
+                            'Default': susceptibility
+                            }
+        elif import_object == 1:
             if type(susceptible) is dict:
                 if 'Default' not in susceptible:
-                    susceptible['Default'] = suscept_default
+                    susceptible['Default'] = self._suscept_default
                 self._susceptible = [
-                        susceptible for _ in xrange(from_object.n)
+                        susceptible for _ in xrange(self.n)
                         ]
             elif type(susceptible) is float or type(susceptible) is int:
                 self._susceptible = [
-                        {'Default': susceptible} for _ in xrange(from_object.n)
+                        {'Default': susceptible} for _ in xrange(self.n)
                         ]
             elif susceptible is list:
                 self._susceptible = []
@@ -118,15 +135,20 @@ class ContactStructure():
                         more details.
                     """
                     )
-        else:
-            raise AttributeError(
-                """
-                    Neither a graph nor a lists of hosts is provided.\n\n%s
-                """ % self.__doc__
-            )
-        self.graph_info = {}
         # this is only filled up in the Scenario class in the Spreading module.
         self.susceptible = [[] for _ in xrange(len(self._susceptible))]
+
+    class HostOrderError(Exception):
+        pass
+
+    class IncompatibleSusceptibilityError(Exception):
+        pass
+
+    class UniqueIDError(Exception):
+        pass
+
+    class ImplementationMissingError(Exception):
+        pass
 
     @property
     def info(self):
@@ -251,7 +273,10 @@ class ContactSequence(ContactStructure):
         :param temporal_graph: An instance of the TemporalGraph class from
             nw_construct package. If this attribute is provided, the events
             are ignored.
-        :param params: optional arguments can be passed here. Possible are:
+        :param params: optional arguments can be passed here.
+            You can also pass any argument for the ContacStructure constructor
+            here.
+            Possible are:
             :param node_props: a list of node properties you want to import.
                 If this argument is provided, the attribute node_props will
                 be populated with the properties specified here.
@@ -262,11 +287,11 @@ class ContactSequence(ContactStructure):
             self.stops = temporal_graph.stops
             self.node1s = temporal_graph.node1s
             self.node2s = temporal_graph.node2s
-            self.t_start = params.get('t_start', np.min(self.starts))
-            self.t_stop = params.get('t_stop', np.max(self.stops))
+            self.t_start = params.pop('t_start', np.min(self.starts))
+            self.t_stop = params.pop('t_stop', np.max(self.stops))
             self.nodes_start = temporal_graph.nodes_start
             self.nodes_end = temporal_graph.nodes_end
-            node_props = params.get('node_props', None)
+            node_props = params.pop('node_props', None)
             if node_props is not None:
                 self.node_props = [
                         {
@@ -275,7 +300,8 @@ class ContactSequence(ContactStructure):
                         ]
             ContactStructure.__init__(
                     self, from_object=temporal_graph, is_static=False,
-                    has_dynamic_nodes=temporal_graph.has_dynamic_nodes
+                    has_dynamic_nodes=temporal_graph.has_dynamic_nodes,
+                    **params
                     )
         elif hosts is not None:
             self.nodes_starts = [host.start for host in hosts]
