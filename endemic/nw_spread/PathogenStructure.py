@@ -1,7 +1,8 @@
 import re
 from RateDistribution import Distro
 
-#this is passed as the scale parameter if rate == 0 - see Distro.fillup() for details.
+#this is passed as the scale parameter if rate == 0 -
+# see Distro.fillup() for details.
 NO_RATE_FLAG = None
 
 
@@ -148,8 +149,8 @@ class Pathogen():
         """
         This creates the self.selection_dists list.
 
-        self.selection_dists holds for each selection rate existing in the scenario a Distro object to draw a seleciton
-            time from.
+        self.selection_dists holds for each selection rate existing in the
+        scenario a Distro object to draw a selection time from.
         :return:
         """
         selection_rates = []
@@ -162,46 +163,38 @@ class Pathogen():
                 try:
                     scale = a_rate ** (-1)
                 except ZeroDivisionError:
-                    scale = NO_RATE_FLAG  #set the flag for a rate of 0.
-                self.select_dists[a_rate] = Distro(scale=scale, pre=10000)
+                    scale = NO_RATE_FLAG  # set the flag for a rate of 0.
+                self.select_dists[a_rate] = Distro(
+                        scale=scale, size=10000
+                        )
         return 0
 
     @staticmethod
     def index_min(values):
         return min(xrange(len(values)), key=values.__getitem__)
 
-    #to do: delete this. its the old version of the method below
-    def _get_selected(self, strain_id, boosts=None):
-        """
-
-        :param strain_id: The id of the strain that is introduced
-        :param boosts:
-        :return:
-        """
-        potential_selection = self.select_rates[strain_id]  #list: index(strain_id), value(selection_rate)
-        if boosts is None:
-            selection_times = map(lambda x: self.select_dists[x].get_val(), potential_selection)
-        else:
-            #issue: look closer at how the boosts influence the selection time
-            selection_times = map(lambda x: self.select_dists[x].get_val() * boosts[strain_id], potential_selection)
-        i = self.index_min(selection_times)
-        return i, selection_times[i]  #strain_id and time of selection
-
-    #issue: the boost as well as the delay is not needed.
+    # issue: the boost as well as the delay is not needed.
     def get_selected(self, strain_id):
         """
 
         :param strain_id: The id of the strain that is introduced
         :return:
         """
-        potential_selection = self.select_rates[strain_id]  #list: index(strain_id), value(selection_rate)
-        selection_times = map(lambda x: self.select_dists[x].get_val(), potential_selection)
+        potential_selection = self.select_rates[strain_id]
+        # list: index(strain_id), value(selection_rate)
+        selection_times = map(
+                lambda x: self.select_dists[x].get_val(),
+                potential_selection
+                )
         i = self.index_min(selection_times)
-        return i, selection_times  #strain_id and time of selection
+        return i, selection_times  # strain_id and time of selection
 
 
 class Strain():
-    def __init__(self, name, transmission_rate, recover_rate, recover_type=1, selection_rate=None, ):
+    def __init__(
+            self, name, transmission_rate, recover_rate,
+            recover_type=1, selection_rate=None,
+    ):
         """
         This class defines a single strain.
 
@@ -233,16 +226,27 @@ class Strain():
                 transmission_rate, (float, int)
                 ) else self._to_rate(transmission_rate)
         try:
-            self.b_dist = Distro(self.b ** (-1), 10000)
+            self.b_dist = Distro(
+                    scale=self.b ** (-1),
+                    size=10000
+                    )
         except ZeroDivisionError:
-            self.b_dist = Distro(NO_RATE_FLAG, 10000)
+            self.b_dist = Distro(
+                    scale=NO_RATE_FLAG,
+                    size=10000
+                    )
         self.g = recover_rate if isinstance(
                 recover_rate, (float, int)
                 ) else self._to_rate(recover_rate)
         try:
-            self.g_dist = Distro(self.g ** (-1), 10000)
+            self.g_dist = Distro(
+                    scale=self.g ** (-1),
+                    size=10000
+                    )
         except ZeroDivisionError:
-            self.g_dist = Distro(NO_RATE_FLAG, 10000)
+            self.g_dist = Distro(
+                    scale=NO_RATE_FLAG,
+                    size=10000)
         if selection_rate:
             if type(selection_rate) is not dict:
                 self.s = {'Default': selection_rate}

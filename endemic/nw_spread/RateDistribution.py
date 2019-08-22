@@ -105,7 +105,9 @@ class Distro(object):
                 'scale': get_value(kwargs, 'scale'),
                 'size': get_value(kwargs, 'size')
                 }
-            if self._dist_params['scale'] == 0:
+            if self._dist_params[
+                    'scale'] == 0 or self._dist_params[
+                            'scale'] is None:
                 self.draw_fct = inf_time
         elif self.distribution_type == 'normal':
             self.draw_fct = n_rand.normal

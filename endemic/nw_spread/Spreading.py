@@ -1631,8 +1631,6 @@ class Scenario():
                 You'll need to provide the 'with_treatment': True task to run
                 the simulation with a treatment.
         """
-        # set the seed
-        self.seed = self._set_seed(seed)
         try:
             self.simulation_log['scenario'].append(phases)
         except KeyError:
@@ -1641,7 +1639,7 @@ class Scenario():
         # issue: should the adjacency be written in each phase?
         self._update_phase_in_sim_log()
         for _i in xrange(len(phases)):
-            phase in deepcopy(phases[_i])
+            phase = deepcopy(phases[_i])
             # get or set a new seed for this phase
             self.seed = phase.get('seed', None)
             # update the seed in the phases log (if no seed was provided use
