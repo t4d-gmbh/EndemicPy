@@ -270,7 +270,7 @@ class ContactSequence(ContactStructure):
             if node_props is not None:
                 self.node_props = [
                         {
-                            prop: getattr(a_node,prop) for prop in node_props
+                            prop: getattr(a_node, prop) for prop in node_props
                             } for a_node in temporal_graph.nodes
                         ]
             ContactStructure.__init__(
@@ -280,32 +280,36 @@ class ContactSequence(ContactStructure):
         elif hosts is not None:
             self.nodes_starts = [host.start for host in hosts]
             self.nodes_stops = [host.stop for host in hosts]
-            # check if the hosts have contact events, if so the events should 
+            # check if the hosts have contact events, if so the events should
             # be constructed from those.
             # ToDo!
             if hosts[0].contacts is not None:
                 # digest the contacts into the starts, stops, node1s, node2s
                 # and event_params
                 raise self.ImplementationMissingError(
-                """
-                    Creating the events for the individual hosts contact is 
+                    """
+                    Creating the events for the individual hosts contact is
                     not implemented yet.
-                """
+                    """
                 )
             if events is not None:
                 # sort them first according to start times
-                events.sort(key=lambda x:x[event_keys['start']])
+                events.sort(key=lambda x: x[event_keys['start']])
                 self.starts = [
-                        an_event.pop(event_keys['start']) for an_event in events
+                        an_event.pop(event_keys['start'])
+                        for an_event in events
                         ]
                 self.stops = [
-                        an_event.pop(event_keys['stop']) for an_event in events
+                        an_event.pop(event_keys['stop'])
+                        for an_event in events
                         ]
                 self.node1s = [
-                        an_event.pop(event_keys['node1']) for an_event in events
+                        an_event.pop(event_keys['node1'])
+                        for an_event in events
                         ]
                 self.node2s = [
-                        an_event.pop(event_keys['node2']) for an_event in events
+                        an_event.pop(event_keys['node2'])
+                        for an_event in events
                         ]
                 # now put whatever remains of the evenst in event_params
                 self.event_params = events
@@ -337,11 +341,9 @@ class ContactSequence(ContactStructure):
 
         nn1 = self.node1s.view()[the_filter]
         nn2 = self.node2s.view()[the_filter]
-        #TODO: alternative init: are self.node1s/2s np.arrays?
-        #nn1 = self.node1s[the_filter]
-        #nn2 = self.node2s[the_filter]
-
-
+        # TODO: alternative init: are self.node1s/2s np.arrays?
+        # nn1 = self.node1s[the_filter]
+        # nn2 = self.node2s[the_filter]
         nn = np.where(
             node_id != nn1,
             nn1,
@@ -367,67 +369,6 @@ class ContactSequence(ContactStructure):
 
         return [i for i in xrange(len(node_indices)) if node_indices[i]]
 
-#    def get_temporally_connected_nodes(self, source_node, start_time, delta_t):
-#        """
-#        Finds all the nodes connected to source_node by a time-respecting path
-#        in a given time window
-#        
-#        Parameters
-#        ----------
-#        source_node : int
-#            the source node for the search        
-#        start_time : float 
-#            the starting time of the search
-#        delta_t: float
-#            stop_time = `start_time` + `delta_t`        
-#        
-#        Returns
-#        -------
-#        distances : list of ints
-#            distances from the source node for each node (-1 means that the node is unreachable)
-#        delays : list of floats
-#            time delays between each node and the source node
-#        
-#        Call
-#        ----
-#        distances, delays = get_temporally_connected_nodes(source_node, start_time, delta_t)
-#        
-#        11.08.2015, A.Bovet
-#        """
-#        # array holding the distance from the source node for all found nodes (-1 = not treated)
-#        distances = [-1 for _ in xrange(self.n)]    
-#        distances[source_node] = 0
-#    
-#        # arry holding the delay (temporal distance between the source node and the 
-#        # temporally connected nodes (-1 = not treated)
-#        delays = [-1 for _ in xrange(self.n)]    
-#        delays[source_node] = start_time    
-#        
-#        # queue containing the nodes whose neighbours need to be searched
-#        search_queue = Queue(maxsize = self.n)
-#        search_queue.put_nowait(source_node)
-#        
-#        while not search_queue.empty():
-#            node = search_queue.get_nowait()
-#            dist = distances[node]
-#            start = delays[node]
-#            # lookup time respecting neighbours         
-#            nn, nstarts, _ = self.get_events(node, start, start_time + delta_t - start)
-#            
-#            for neigh, neigh_start in zip(nn, nstarts):
-#                # if we haven't aready visited this node
-#                if distances[neigh] == -1:
-#                    distances[neigh] = dist + 1
-#                    delays[neigh] = neigh_start 
-#                    search_queue.put_nowait(neigh)
-#        
-#        delays = [delays[i]- start_time for i in xrange(len(delays))]
-#        return distances, delays
-        
-#    def get_influence_set(self, node):
-#        """ returns the set of node indexes of the influence set of node "node"  """
-#        distances, _ = self.get_temporally_connected_nodes(node, self.t_start, self.t_stop - self.t_start)
-#        return [i for i, x in enumerate(distances) if x != -1]
 
 class Host():
     def __init__(self, an_id, neighbours=None, susceptible=1):
@@ -436,7 +377,7 @@ class Host():
 
         Arguments:
             - name: int, unique for each host in a contact_structure
-            - neighbours: 
+            - neighbours:
             - susceptible:
         :param an_id: unique id for each host in a contact_structure
         :param neighbours: A numpy array of either host _id's indicating all
@@ -454,19 +395,20 @@ class Host():
         self.susceptible = susceptible
         self.neighbours = neighbours
 
-#TODO: rename this
+
+# TODO: rename this
 class dynHost(Host):
     def __init__(
             self, an_id, contacts=None, susceptible=1,
-            start=None, stop=None, params=None, get_from_params=None 
+            start=None, stop=None, params=None, get_from_params=None
             ):
         if contacts:
-            # contacts is a list of events (start, duration, partner, where=None)
+            # contacts is list of events (start, duration, partner, where=None)
             neighbours = np.array(set(map(lambda x: x[2], contacts)))
             self.contacts = contacts
-            self.contacts.sort(key=lambda x:x[0])
+            self.contacts.sort(key=lambda x: x[0])
         else:
-            neighbours=None
+            neighbours = None
         super.__init__(self, an_id, neighbours, susceptible)
         self.start = start
         self.stop = stop
@@ -475,4 +417,3 @@ class dynHost(Host):
                 for attr in get_from_params:
                     setattr(self, attr, params.pop(attr, None))
             self.params = params
-
