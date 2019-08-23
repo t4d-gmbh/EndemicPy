@@ -716,16 +716,26 @@ class Scenario():
                 'random'. 'nbr_infections' specifies how many host should be
                 infected, default is 1.
 
-                Eg. - strain = {'wild_type':[1,5,10]}: infects hosts 1,5 and 10
-                        with the wild type strain.
-                    - strain = {'mutant_1': 'wild_type'}: infect a randomly
-                        chose host that is currently infected with the
-                        wild_type strain with the mutant_1 strain.
-
+                Eg. - strain = {'wild_type':[1,5,10]}
+                        Infects hosts 1,5 and 10 with the wild type strain.
+                    - strain = {'wild_type': 'random'}
+                        Infects a single, randomly chose node with the
+                        wild-type
+                    - strain = {'mutant_1': 'wild_type'}
+                        Infect a randomly chose host that is currently infected
+                        with the wild_type strain with the mutant_1 strain.
                     - strain = {'wild_type': {
-                            't_inf': 10, 'host': 'random', 'nbr_infection':2
-                            }}:
-                        infect two random hosts at time 10.
+                            't_inf': 10, 'host': 'random',
+                            }}
+                        Infect two random hosts at time 10.
+                        If t_inf is not provided then the current time of the
+                        scenario, i.e. self.t, is used as infection time.
+                    - strain = {'wild_type': {
+                            't_inf': [0, 10],
+                            'host': [['random'], [0, 1, 2]]
+                            }}
+                        Infect a random host with the wild-type at t = 0 and 
+                        the hosts 0, 1, and 2 at t = 10.
         """
         for name in strain:
             # make sure the strain exists
@@ -739,11 +749,146 @@ class Scenario():
             # if a dictionary is given, infect random node at time t_inf
             if isinstance(strain[name], dict):
                 t_inf = strain[name].get(
-                        't_inf', self.contact_structure.t_start
+                        't_inf', self.t
                         )
                 hosts = strain[name].get(
                         'host', 'random'  # default is random
                         )
+
+                # carry out the infection at each t_inf
+                def _expander(_keys, _values):
+                    if isinstance(_keys, list):
+                        if isinstance(_values, list):
+                            if isinstance(_values[0],list):
+                                return _keys, _values
+                            else:
+                                return _keys, [_values for _ in _keys]
+                        else:
+                            return _keys, [[_values] for _ in _keys]
+                    else:
+                        if isinstance(_values, list):
+                            return [_keys], [_values]
+                        else:
+                            return [_keys], [[_values]]
+                t_inf, hosts = _expander(t_inf, hosts)
+
+                for i in xrange(len(t_inf)):
+                    a_t_inf = t_inf[i]
+                    if not self.contact_structure.is_static:
+                        candidate_nodes = \
+                                self.contact_structure.get_nodes_by_lifetime(
+                                    a_t_inf
+                                    )
+                    else:
+                        candidate_nodes = range(self.contact_structure.n)
+                    if len(candidate_nodes) < 1:
+                        raise self.InitiateInfectionError(
+                                """
+                                    No host at time %s to be infected.
+                                """ % a_t_inf
+                                )
+                    # now for all the infection times we have a set of present
+                    # hosts
+                    for a_host in hosts[i]:
+                        if a_host == 'random':
+                            the_host = random.choice(
+                                    candidate_nodes
+                                    )
+                            self.queue.put_nowait(
+                                Event(
+                                    a_t_inf, the_host, 
+                                    self.pathogen.ids[name], False,
+                                    )
+                                )
+                        # if the host is specified by id
+                        elif isinstance(a_host, int):
+                            if a_host not in candidate_nodes:
+                                raise self.InitiateInfectionError(
+                                        """
+                                       The host with ID %s does not exist at 
+                                       the time it should be infected, %s.
+                                        """ % (a_host, a_t_inf)
+                                        )
+                            self.queue.put_nowait(
+                                    Event(
+                                        a_t_inf,
+                                        a_host,
+                                        self.pathogen.ids[name],
+                                        False,
+                                        )
+                                    )
+                        # the host must be a specific strain
+                        else:
+                            if a_t_inf != self.t:
+                                raise self.InitiateInfectionError(
+                                        """
+                                            The targeted infection of a host 
+                                            infected with a specific pathogen
+                                            is only possible if the infection 
+                                            time is the current time of the 
+                                            simulation.
+                                            Current time: %s
+                                            Time of infection: %s
+                                        """ % (self.t, a_t_inf)
+                                )
+                            # get the ids of of name and hosts
+                            target_id = self.pathogen.ids[a_host]
+                            mut_id = self.pathogen.ids[name]
+                            # check if the target pathogen is present in the
+                            # population, if not raise an error.
+                            potentials = [
+                                filter(
+                                    lambda x: x in filter(
+                                        lambda _x: self.current_view[
+                                            _x] == target_id,
+                                        range(self.contact_structure.n)
+                                    ), candidate_nodes
+                                )
+                            ]
+                            if not potentials:
+                                raise self.InitiateInfectionError(
+                                        """
+                                        There are no host infected with %s at 
+                                        the moment.
+                                        """ % a_host
+                                        )
+                            # chose at random one specified infected
+                            # host -> new_mutated.
+                            new_mutated = random.choice(potentials)
+                            # now that we have chose our host to mutate, we
+                            # need to filter the existing event queue for any
+                            # events associated with this host (e.g. this host
+                            # will not infect its neighbours with its previous
+                            # strain anylonger.
+                            # copy the event queue into a list
+                            pending_events = []
+                            while True:
+                                try:
+                                    pending_events.append(
+                                            self.queue.get_nowait())
+                                except Empty:
+                                    break
+                            # remove all entries where new_mutated infects plus
+                            # the one where he recovers an recreate the queue
+                            for an_event in pending_events:
+                                # filter out infections where new_mutated is
+                                # the source
+                                if an_event[1][3] != new_mutated:
+                                    # do not take the recover event for
+                                    # new_mutated
+                                    if an_event[1][0] != new_mutated:  
+                                        self.queue.put_nowait(an_event)
+                            # add infection event of new_mutated with hosts
+                            # make sure that the infection overwrites
+                            # new_mutated's old status (use inf_event = False)
+                            self.queue.put_nowait(
+                                    Event(a_t_inf, new_mutated, mut_id, False,)
+                                    )
+
+
+
+
+
             # type(strain[name]) is not str:
             elif isinstance(strain[name], list):
                 for node_id in strain[name]:
@@ -826,139 +971,6 @@ class Scenario():
                         self._initiate_infection.__doc__
                     )
                 )
-            # TODO: this is from other branch
-            # else:
-            #     t_inf = self.t
-            #     hosts = strain[name]
-            # self._init_queue()
-            # TODO: here was the ===
-            # carry out the infection at each t_inf
-
-            def _expander(_keys, _values):
-                if isinstance(_keys, list):
-                    if isinstance(_values, list):
-                        if isinstance(_values[0], list):
-                            return _keys, _values
-                        else:
-                            return _keys, [_values for _ in _keys]
-                    else:
-                        return _keys, [[_values] for _ in _keys]
-                else:
-                    if isinstance(_values, list):
-                        return [_keys], [_values]
-                    else:
-                        return [_keys], [[_values]]
-            t_inf, hosts = _expander(t_inf, hosts)
-
-            # now the infections are set for the specified strain
-            for i in xrange(len(t_inf)):
-                a_t_inf = t_inf[i]
-                if not self.contact_structure.is_static:
-                    candidate_nodes = \
-                            self.contact_structure.get_nodes_by_lifetime(
-                                a_t_inf
-                                )
-                else:
-                    candidate_nodes = range(self.contact_structure.n)
-                if len(candidate_nodes) < 1:
-                    raise self.InitiateInfectionError(
-                            """
-                            No host at time %s to be infected.
-                            """ % a_t_inf
-                            )
-                # now for all the infection times we have a set of present
-                # hosts
-                for a_host in hosts[i]:
-                    if a_host == 'random':
-                        the_host = random.choice(
-                                candidate_nodes
-                                )
-                        self.queue.put_nowait(
-                            Event(
-                                a_t_inf, the_host,
-                                self.pathogen.ids[name], False,
-                                )
-                            )
-                    # if the host is specified by id
-                    elif isinstance(a_host, int):
-                        if a_host not in candidate_nodes:
-                            raise self.InitiateInfectionError(
-                                    """
-                                       The host with ID %s does not exist at
-                                       the time it should be infected, %s.
-                                    """ % (a_host, a_t_inf)
-                                    )
-                        self.queue.put_nowait(
-                                Event(
-                                    a_t_inf, a_host, self.pathogen.ids[name],
-                                    False,
-                                    )
-                                )
-                    # the host must be a specific strain
-                    else:
-                        if a_t_inf != self.t:
-                            raise self.InitiateInfectionError(
-                                    """
-                                        The targeted infection of a host
-                                        infected with a specific pathogen
-                                        is only possible if the infection
-                                        time is the current time of the
-                                        simulation.
-                                        Current time: %s
-                                        Time of infection: %s
-                                    """ % (self.t, a_t_inf)
-                            )
-                        # get the ids of of name and hosts
-                        target_id = self.pathogen.ids[a_host]
-                        mut_id = self.pathogen.ids[name]
-                        # check if the target pathogen is present in the
-                        # population, if not raise an error.
-                        potentials = [
-                            filter(
-                                lambda x: x in filter(
-                                    lambda x:
-                                    self.current_view[x] == target_id,
-                                    range(self.contact_structure.n)
-                                ), candidate_nodes
-                            )
-                        ]
-                        if not potentials:
-                            raise self.InitiateInfectionError(
-                                    """
-                                        There are no host infected with %s at
-                                        the moment.
-                                    """ % a_host
-                                    )
-                        # chose at random one specified infected
-                        # host -> new_mutated.
-                        new_mutated = random.choice(potentials)
-                        # now that we have chose our host to mutate, we need to
-                        # filter the existing event queue for any events
-                        # associated with this host (e.g. this host will not
-                        # infect its neighbours with its previous strain
-                        # anylonger.
-                        # copy the event queue into a list
-                        pending_events = []
-                        while True:
-                            try:
-                                pending_events.append(self.queue.get_nowait())
-                            except Empty:
-                                break
-                        # remove all entries where new_mutated infects plus the
-                        # one where he recovers an recreate the queue
-                        for an_event in pending_events:
-                            # filter out infections where new_mutated is the
-                            # source
-                            if an_event[1][3] != new_mutated:
-                                # do not take the recover event for new_mutated
-                                if an_event[1][0] != new_mutated:
-                                    self.queue.put_nowait(an_event)
-                        # add infection event of new_mutated with hosts
-                        # make sure that the infection overwrites new_mutated's
-                        # old status (use inf_event = False)
-                        self.queue.put_nowait(
-                                Event(a_t_inf, new_mutated, mut_id, False, )
-                                )
         return 0
 
     # # this method is not used anymore. Could be removed.
@@ -1499,7 +1511,7 @@ class Scenario():
                 (or some other halt condition is met - like the
                 assert_survival task below)
                 Note: it might be that a phase does not run until t_stop but
-                    ends earlyer (e.g. if 'builing_up' task if provided -
+                    ends earlier (e.g. if 'building_up' task if provided -
                     see below). For such cases we cannot tell at what time the
                     phase ends and thus at what time the next phase should
                     start. For this there is the self._pase_passon attribute
@@ -1507,7 +1519,7 @@ class Scenario():
 
             'dt': float
                 Can be used to specify the time interval for which the current
-                status should be reported. This only really is usefull if
+                status should be reported. This only really is useful if
                 'explicit': True (see below).
             'with_treatment': boolean
             'with_selection': boolean
@@ -1965,8 +1977,6 @@ class Scenario():
             # if t_stop is provided we still need to carry out the actual
             # simulation. This is done with the self._run method
             if with_run:
-                t_start = phase.pop('t_start', None)
-                t_stop = phase.pop('t_stop', None)
                 # counts_length = len(self._counts_over_time)
                 # if counts_length < int(t_stop):
                 # self._counts_over_time.extend(
@@ -1984,9 +1994,10 @@ class Scenario():
                 #             0
                 #         )
 
+                t_stop = phase.pop('t_stop', None)
                 # call self._run method and pass the remaining tasks on to it
                 self._run(
-                    t_start=t_start,
+                    t_start=phase.pop('t_start', self.t),
                     t_stop=t_stop,
                     **phase
                 )
@@ -2022,7 +2033,8 @@ class Scenario():
                 # to_survive = phase.pop('assert_survival')
                 #    break_here = False
                 #    for strain_name in to_survive:
-                #        if strain_name not in self.outcome['logs'][self.t]['abundance'].keys():
+                #        if strain_name not in self.outcome[
+                #            'logs'][self.t]['abundance'].keys():
                 #            break_here = True
                 #            print '%s got extinct.'%(strain_name)
                 #    if break_here:
@@ -2042,18 +2054,26 @@ class Scenario():
         """
         Run the scenario from t_start to t_stop with the given conditions
 
-        :param assert_survival: If list of strain names, it is checked for survival of those strains.
+        :param assert_survival: If list of strain names, it is checked for
+            survival of those strains.
         :param t_start: Gives the starting time
         :param t_stop: Gives the end time.
         :param with_selection: If True, the selection/mutation is considered.
         :param with_treatment: If True, the specified treatment is applied.
-            NOTE: If True, consider to put the <treating> argument to specify which strains are treated.
-        :param halt_condition: If list of strain names, it is checked for quasi_stability for those strains
+            NOTE: If True, consider to put the <treating> argument to specify
+            which strains are treated.
+        :param halt_condition: If list of strain names, it is checked for
+            quasi_stability for those strains
         :param params: Collection of optional arguments (remaining tasks):
-            - treating: Dict indicating which strain is treated, eg. treating={'wild_type': True, 'Default': False}
-                If 'Default' is given, this value will be applied to all strains missing in the dictionary.
+            - treating: Dict indicating which strain is treated.
+            Eg.. treating={'wild_type': True, 'Default': False}
+                If 'Default' is given, this value will be applied to all
+                strains missing in the dictionary.
             - dt: The time interval after which to update self.log
         """
+        if t_start is not None:
+            self.t = t_start
+
         # self.t = round(t_start, 4)
         # specify the new run in self.simulation_log
         # self._update_phase_in_sim_log(
@@ -2063,7 +2083,8 @@ class Scenario():
         #    assert_survival=assert_survival,
         #    params=params
         # )
-        # determine if the network is static or dynamic and set the appropriate methods.
+        # determine if the network is static or dynamic and set the appropriate
+        # methods.
         if self.contact_structure.is_static:
             if self.single_transmission:
                 get_neighbours = self._get_neighbours_static_single
@@ -2074,7 +2095,8 @@ class Scenario():
                 get_neighbours = self._get_neighbours_dynamic_single
             else:
                 get_neighbours = self._get_neighbours_dynamic
-        # define the event_handler as the simple method for now. This will be adapted if needed in the next lines
+        # define the event_handler as the simple method for now.
+        # This will be adapted if needed in the next lines
         if 'incremental' in params:
             event_handler = self._handle_event_simple_inc
             self._inc_file_o = open(params['incremental'], 'a')
@@ -2082,12 +2104,14 @@ class Scenario():
             event_handler = self._handle_event_simple
         self.treating = []
         self.selecting = []
-        # if no selection parameters where provided when initializing the scenario no selection will be attempted no
-        # matter what is specified in the phase we are currently in.
+        # if no selection parameters where provided when initializing the
+        # scenario no selection will be attempted no matter what is specified
+        # in the phase we are currently in.
         # if self.skip_selection:
         #    with_selection = False
-        # same goes for treatment. If no treatment was specified when initializing (and the task 'add_treatment' was
-        # never provided so far) we skip the treatment.
+        # same goes for treatment. If no treatment was specified when
+        # initializing (and the task 'add_treatment' was never provided so far)
+        # we skip the treatment.
         if with_treatment:
             # if we have treatment, clarify which strain to treat
             if 'treating' in params:
@@ -2097,10 +2121,14 @@ class Scenario():
                     def_val = treat_dict.pop('Default')
                 self.treating = [def_val for _ in xrange(self.pathogen.n)]
                 for strain_name in treat_dict:
-                    self.treating[self.pathogen.ids[strain_name]] = treat_dict[strain_name]
+                    self.treating[
+                            self.pathogen.ids[strain_name]
+                            ] = treat_dict[strain_name]
             else:
-                self.treating = [True for _ in xrange(self.pathogen.n)]  #if treating is missing all strains are treated
-            # if we have treatment and selection, we need to use the combined event handler
+                #if treating is missing all strains are treated
+                self.treating = [True for _ in xrange(self.pathogen.n)]
+            # if we have treatment and selection, we need to use the combined
+            # event handler
             if with_selection:
                 if 'selecting' in params:
                     selecting_dict = params.get('selecting')
@@ -2109,11 +2137,14 @@ class Scenario():
                         def_val = selecting_dict.pop('Default')
                     self.selecting = [def_val for _ in xrange(self.pathogen.n)]
                     for strain_name in selecting_dict:
-                        self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+                        self.selecting[
+                                self.pathogen.ids[strain_name]
+                                ] = selecting_dict[strain_name]
                 else:
                     self.selecting = [True for _ in xrange(self.pathogen.n)]
                 event_handler = self._handle_event_combined
-            # if it is only treatment, the treatment event handler is the one to use
+            # if it is only treatment, the treatment event handler is the one
+            # to use
             else:
                 event_handler = self._handle_event_treatment
         elif with_selection:
@@ -2124,33 +2155,51 @@ class Scenario():
                     def_val = selecting_dict.pop('Default')
                 self.selecting = [def_val for _ in xrange(self.pathogen.n)]
                 for strain_name in selecting_dict:
-                    self.selecting[self.pathogen.ids[strain_name]] = selecting_dict[strain_name]
+                    self.selecting[
+                            self.pathogen.ids[strain_name]
+                            ] = selecting_dict[strain_name]
             else:
                 self.selecting = [True for _ in xrange(self.pathogen.n)]
-            # at this point we know that only selection is on, so use the selection event handler.
+            # at this point we know that only selection is on, so use the
+            # selection event handler.
             event_handler = self._handle_event_selection
-        # check if the time interval for reporting is specified, if not use default one.
+        # check if the time interval for reporting is specified, if not use
+        # default one.
         dt = params.get('dt', self._dt)
-        # get the next time at which the status of the hosts should be reported or halt condition to be checked
+        # get the next time at which the status of the hosts should be reported
+        # or halt condition to be checked
         t_next_bin = self.t + dt
-        # check if we have some halt conditions that might lead to a termination of the simulation before t_stop.
+        # check if we have some halt conditions that might lead to a
+        # termination of the simulation before t_stop.
         with_halt_condition = False
         if assert_survival:
             with_halt_condition = True
-            targeted_strains = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+            targeted_strains = array(
+                    [self.pathogen.ids[strain_name]
+                        for strain_name in assert_survival]
+                    )
             break_condition = self._check_survival
         if halt_condition:
             with_halt_condition = True
-            targeted_strains = array([self.pathogen.ids[strain_name] for strain_name in halt_condition])
+            targeted_strains = array(
+                    [self.pathogen.ids[strain_name]
+                        for strain_name in halt_condition]
+                    )
             break_condition = self._quasistable
-        # to do: basically get rid of the if statement below (is handled in if with_halt_condition)
-        if False:  # assert_survival:  # stop as soon as one of the specified stains goes extinct
-            surviving_strain_ids = array([self.pathogen.ids[strain_name] for strain_name in assert_survival])
+        # to do: basically get rid of the if statement below (is handled in if
+        # with_halt_condition)
+        # stop as soon as one of the specified stains goes extinct
+        if False:  # assert_survival:
+            surviving_strain_ids = array(
+                    [self.pathogen.ids[strain_name]
+                        for strain_name in assert_survival]
+                    )
             # with_logging = params.get('explicit', False)
             done = False
 
-            # TO DO: start for new structure.The wile loop can be put after the running conditions and
-            # each condition defines its proper stepper function.
+            # TO DO: start for new structure.The wile loop can be put after the
+            # running conditions and each condition defines its proper stepper
+            # function.
             # TO DO: problem of combining conditions remains.
 
             def stepper(self):
@@ -2212,18 +2261,20 @@ class Scenario():
             """
         logger_mode = params.get('explicit', 0)
         # if we have a halt condition this part will conduct the simulation
-        # print 'should be logging in mode %s every %s time step' % (logger_mode, dt)
+        # print 'should be logging in mode %s every %s time step' %\
+        #        (logger_mode, dt)
         if with_halt_condition:
             halt = False
-            # should the run be with explicit logs
-            # work the event queue until we either hit t_stop or the halt condition
+            # should the run be with explicit logs work the event queue until
+            # we either hit t_stop or the halt condition
             while self.t < t_stop and not halt:
                 try:
                     # get the next event
                     (time, n_event) = self.queue.get_nowait()
                     # update the time of the scenario
                     self.t = round(time, self._time_rounding)
-                    # self._counts_over_time[int(self.t)] = self._count_per_strains
+                    # self._counts_over_time[
+                    #     int(self.t)] = self._count_per_strains
                     # pass the event to the event handler
                     event_handler(n_event, get_neighbours)
                     # the new time is after the checking time
