@@ -69,52 +69,21 @@ class Scenario():
                 Temporal graph with specified node lifespans (arguments
                 nodes_start and nodes_end of the TemporalGraph instance)
         """
-        # this will store self.current_view at various times
-        # Note: this will be replaced with self.outcome so feel free to ignore
-        self.log = defaultdict(list)
-        # holds detailed information about what happened during a simulation
-        self.simulation_log = {
-            # holds a dict with all the setup parameters at the starting time
-            # of a new phase.
-            'phases': {},
-            # holds all mutation events.
-            'mutations': [],
-            # the adjacency matrix of the contact network
-            'adjacency': {},
-            # keeps track of any change of the status (e.g. artificial
-            # infection event)
-            'modifications': {},
-            # keeps track of any parameter alternations during the simulation
-            'param_alternation': {}
-        }
-        # this will hold processed output
-        self.outcome = {}
+        
         self.contact_structure = contact_structure
-        self.t = self.contact_structure.t_start if not \
-            self.contact_structure.is_static else 0
         self.pathogen = pathogen
 
-        # init of optional and internal arguments
+        # Function does most of the init part. If called, the scenario is set
+        # back to the beginning and a new simulation can be run.
+        self.set()
 
-        # by default hosts are susceptible
-        self._default_susceptibility = 1
-        # by default drugs do not increase mutation/selection rates
-        self._default_drug_selection_factor = 1
-        # should a contact lead to multiple transmission events:
-        self.single_transmission = params.get('single_transmission', False)
-        # set the time:
-        self.t = self.contact_structure.t_start \
-            if not self.contact_structure.is_static else 0
-        self.pathogen = pathogen
         # init of optional and internal arguments
         self._default_susceptibility = 1  # by default hosts are susceptible
         # by default drugs do not increase mutation/selection rates
         self._default_drug_selection_factor = 1
-        # holds the number of infected individuals for each strain
-        self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
-        # Note: used to contain the status of the host population overt time -
-        # will be redefined and is not in use.
-        self._counts_over_time = zeros((1, self.pathogen.n))
+        # should a contact lead to multiple transmission events:
+        self.single_transmission = params.get('single_transmission', False)
+
         # set the default value for the time step used to regularly test if a
         # quasi steady state is reached
         self._dt = params.get(
@@ -160,26 +129,12 @@ class Scenario():
             # we need to take into account treatment
             self.skip_treatment = False
             self._resolve_treatment_pathogen_relations()
-        # initialize the status (-1 means susceptible): everyone is susceptible
-        self.current_view = [-1 for _ in xrange(self.contact_structure.n)]
-        # indicate whether host was infected through infection or mutation.
-        # 0: infection, 1: mutation
-        self.current_infection_type = [
-                -1 for _ in xrange(self.contact_structure.n)
-                ]  # -1: not infected
-        # dict that can be used to pass on values between phases.
-        # This is more for future use and not important for now.
-        self._phase_passon = {}
-        # initialize the status of whether or not a host is under treatment.
-        # (-1: not infected
-        self.current_therapy = [-1 for _ in xrange(self.contact_structure.n)]
+
         # this will be a list of booleans (index: strain_id, value:
         # treating yes/no)
         self.treating = []
         self.selecting = []
-        # initialize the priorityqueue which will hold all the events
-        # (infection, recovering, mutation, ...)
-        self.queue = PriorityQueue()
+
         self._inf_file_o = None
         # This will be the stream to an output file to write incremental steps
         # into.
@@ -485,13 +440,11 @@ class Scenario():
         stop_times -= self.t
         return nn, recover_time, inf_times, start_times, stop_times
 
-    # to do: attributes are defined in __init__ so any change in their
-    # definitions has to be passed on to here ideally reset should be called
-    # in __init__ to avoid any code duplication.
-    def reset(self, graph=None):
+    def set(self, graph=None):
         """
-        This method allow to reset the entire scenario, i.e. the scenario is
-            set back to the time t=0 before any initial infections took place.
+        This method allow to set and reset the entire scenario, i.e. the
+            scenario is set back to the time t=0 before any initial infections
+            took place.
         It can be called when doing multiple simulations with the same
             parameters.
         If the parameter graph is provided, then the topology of the contact
@@ -500,34 +453,53 @@ class Scenario():
         :param graph: Graph object from the nw_construct package
         :return:
         """
+        # this will store self.current_view at various times
+        # Note: this will be replaced with self.outcome so feel free to ignore
         self.log = defaultdict(list)
+        # holds detailed information about what happened during a simulation
         self.simulation_log = {
+            # holds a dict with all the setup parameters at the starting time
+            # of a new phase.
             'phases': {},
+            # holds all mutation events.
             'mutations': [],
+            # the adjacency matrix of the contact network
             'adjacency': {},
+            # keeps track of any change of the status (e.g. artificial
+            # infection event)
             'modifications': {},
-            'param_alternation': {},
-            'seed': None
+            # keeps track of any parameter alternations during the simulation
+            'param_alternation': {}
         }
         self.outcome = {}
         self.t = self.contact_structure.t_start if not \
             self.contact_structure.is_static else 0
+        # holds the number of infected individuals for each strain
         self._count_per_strains = array([0 for _ in xrange(self.pathogen.n)])
+        # Note: used to contain the status of the host population overt time -
+        # will be redefined and is not in use.
         self._counts_over_time = zeros((1, self.pathogen.n))
-        # Indicates the current status of the hosts
+
+
+        # initialize the status (-1 means susceptible): everyone is susceptible
         self.current_view = [-1 for _ in xrange(self.contact_structure.n)]
+        # indicate whether host was infected through infection or mutation.
+        # 0: infection, 1: mutation
         self.current_infection_type = [
                 -1 for _ in xrange(self.contact_structure.n)
-                ]
+                ]  # -1: not infected
+        # initialize the status of whether or not a host is under treatment.
+        # (-1: not infected
         self.current_therapy = [-1 for _ in xrange(self.contact_structure.n)]
-        # dict that can be used to pass on values between phases.
+        # Dict that can be used to pass on values between phases.
         self._phase_passon = {}
-        # empty the queue
-        while True:
-            try:
-                self.queue.get_nowait()
-            except Empty:
-                break
+
+        # initialize the priorityqueue which will hold all the events
+        # (infection, recovering, mutation, ...)
+        self.queue = PriorityQueue()
+
+        # update the topology of the contact structure if a new topology is
+        # provided.
         if graph:
             self.contact_structure.update_topology(graph)
         return None
