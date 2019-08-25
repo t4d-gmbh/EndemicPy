@@ -662,7 +662,6 @@ class Scenario():
     class WrongImplementationError(Exception):
         pass
 
-    # TODO: This method had major conflicts in the last merge > TO CHECK
     def _initiate_infection(self, strain, ):
         """
 
