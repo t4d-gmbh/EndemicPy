@@ -453,7 +453,7 @@ class Scenario():
 
         self.outcome = defaultdict(list)
         # this will store self.current_view at various times
-        # self.status  # ToDo
+        self.status = defaultdict(list)
         # holds detailed information about what happened during a simulation
         self.simulation_log = {
             # holds a dict with all the setup parameters at the starting time
@@ -2182,12 +2182,11 @@ class Scenario():
                     # the new time is after the checking time
                     if self.t >= t_next_bin:
                         if logger_mode:
-                            if logger_mode == 1:
-                                self.outcome[
-                                        round(self.t, self._log_time_rounding)
-                                        ].append(self.get_outcome())
-                            elif logger_mode == 2:
-                                self.outcome[
+                            self.outcome[
+                                    round(self.t, self._log_time_rounding)
+                                    ].append(self.get_outcome())
+                            if logger_mode == 2:
+                                self.status[
                                         round(self.t, self._log_time_rounding)
                                         ].append(copy(self.current_view))
                         t_next_bin += dt
@@ -2360,16 +2359,10 @@ class Scenario():
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            if logger_mode == 1:
-                                self.outcome[
-                                        round(self.t, self._log_time_rounding)
-                                        ].append(self.get_outcome())
-                            elif logger_mode == 2:
-                                self.outcome[
-                                        round(self.t, self._log_time_rounding)
-                                        ].append(copy(self.current_view))
-
                             self.outcome[
+                                    round(self.t, self._log_time_rounding)
+                                    ].append(self.get_outcome())
+                            self.status[
                                     round(self.t, self._log_time_rounding)
                                     ].append(copy(self.current_view))
                             while self.t >= t_next_bin:
@@ -2377,15 +2370,12 @@ class Scenario():
                         if test_cond(self):
                             return 0
                     except Empty:
-
-                        if logger_mode == 1:
-                            self.outcome[
-                                    round(self.t, self._log_time_rounding)
-                                    ].append(self.get_outcome())
-                        elif logger_mode == 2:
-                            self.outcome[
-                                    round(self.t, self._log_time_rounding)
-                                    ].append(copy(self.current_view))
+                        self.outcome[
+                                round(self.t, self._log_time_rounding)
+                                ].append(self.get_outcome())
+                        self.status[
+                                round(self.t, self._log_time_rounding)
+                                ].append(copy(self.current_view))
                         break
             else:
                 while self.t < t_stop:
@@ -2413,23 +2403,21 @@ class Scenario():
                         self.t = round(time, self._time_rounding)
                         event_handler(n_event, get_neighbours)
                         if self.t >= t_next_bin:
-                            if logger_mode == 1:
-                                self.outcome[
-                                        round(self.t, self._log_time_rounding)
-                                        ].append(self.get_outcome())
-                            elif logger_mode == 2:
-                                self.outcome[
+                            self.outcome[
+                                    round(self.t, self._log_time_rounding)
+                                    ].append(self.get_outcome())
+                            if logger_mode == 2:
+                                self.status[
                                         round(self.t, self._log_time_rounding)
                                         ].append(copy(self.current_view))
                             while self.t >= t_next_bin:
                                 t_next_bin += dt
                     except Empty:
-                        if logger_mode == 1:
-                            self.outcome[
-                                    round(self.t, self._log_time_rounding)
-                                    ].append(self.get_outcome())
-                        elif logger_mode == 2:
-                            self.outcome[
+                        self.outcome[
+                                round(self.t, self._log_time_rounding)
+                                ].append(self.get_outcome())
+                        if logger_mode == 2:
+                            self.status[
                                     round(self.t, self._log_time_rounding)
                                     ].append(copy(self.current_view))
                         break
@@ -2696,7 +2684,6 @@ class Scenario():
         else:
             return 0
 
-    @property
     def get_outcome(self, include_seed=False):
         """
         This function should be called at the end of each phase.
