@@ -60,8 +60,8 @@ class Scenario():
                 restrained to a single transmission per contact.
             TODO: Is this even present?
             - ignore_dyn_nodes_in_log: If True, nodes that expand their
-                lifespan are not set to -2 in self.outcome but keep their state or
-                they may undergo future state changes (e.g. recovery).
+                lifespan are not set to -2 in self.outcome but keep their
+                state or they may undergo future state changes (e.g. recovery).
                 This option only has an effect if the contact_structure is a
                 Temporal graph with specified node lifespans (arguments
                 nodes_start and nodes_end of the TemporalGraph instance)
@@ -2059,7 +2059,7 @@ class Scenario():
                             self.pathogen.ids[strain_name]
                             ] = treat_dict[strain_name]
             else:
-                #if treating is missing all strains are treated
+                # if treating is missing all strains are treated
                 self.treating = [True for _ in xrange(self.pathogen.n)]
             # if we have treatment and selection, we need to use the combined
             # event handler
