@@ -2409,13 +2409,15 @@ class Scenario():
                 new_rate = alternations[strain_name]['transmission_rate']
                 self.pathogen.trans_rates[its_id] = new_rate
                 self.pathogen.trans_dists[its_id] = Distro(
-                        new_rate ** (-1), 10000
+                        scale=new_rate ** (-1),
+                        size=10000
                         )
             if 'recover_rate' in alternations[strain_name]:
                 new_rate = alternations[strain_name]['recover_rate']
                 self.pathogen.rec_rates[its_id] = new_rate
                 self.pathogen.rec_dists[its_id] = Distro(
-                        new_rate ** (-1), 10000
+                        scale=new_rate ** (-1),
+                        size=10000
                         )
                 # to do: finish with recover_type
             if 'selection_rate' in alternations[strain_name]:
