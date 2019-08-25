@@ -1,7 +1,7 @@
 import re
 from RateDistribution import Distro
 
-#this is passed as the scale parameter if rate == 0 -
+# this is passed as the scale parameter if rate == 0 -
 # see Distro.fillup() for details.
 NO_RATE_FLAG = None
 
@@ -9,16 +9,17 @@ NO_RATE_FLAG = None
 class Pathogen():
     def __init__(self, strains):
         """
-        A pathogen object can hold a collection of strains (object form Strain class).
+        A pathogen object can hold a collection of strains (object form Strain
+        class).
         At some point it might even be possible that a pathogen object
             can create new _strains. But for now it just holds a collection
             of previously defined Strain objects
-        
+
         Arguments:
             - strains: a list of Strain objects
         """
-        self._strains = []  #list of ids
-        self.n = 0  #gives the number of strains
+        self._strains = []  # list of ids
+        self.n = 0  # gives the number of strains
         self.names = {}
         self.ids = {v: k for k, v in self.names.iteritems()}
         self.trans_rates = []
@@ -28,7 +29,7 @@ class Pathogen():
         self.rec_types = []
         self.select_rates = []
         self._select_rates = []
-        self.select_dists = {}  #NOTE: this is going to be rate specific
+        self.select_dists = {}  # NOTE: this is going to be rate specific
         for a_strain in strains:
             self._append_strain(a_strain)
         self._check_integrity()
@@ -49,20 +50,21 @@ class Pathogen():
         self._select_rates.append(a_strain.s)
         return 0
 
-    #issue: this is to modify an existing strain = not used for now
+    # issue: this is to modify an existing strain = not used for now
     def _modify_strain(self, strain_id, new_strain):
         its_id = strain_id
         self.names[its_id] = new_strain.name
         self.ids[new_strain.name] = its_id
         self._strains.append(its_id)
-        #self.n = len(self._strains)
+        # self.n = len(self._strains)
         self.trans_rates[its_id] = new_strain.b
         self.trans_dists[its_id] = new_strain.b_dist
         self.rec_rates[its_id] = new_strain.g
         self.rec_dists[its_id] = new_strain.g_dist
         self.rec_types[its_id] = new_strain.recover_type
         self._select_rates[its_id] = new_strain.s
-        #to do: selection still needs to be handled: _resolve_selection and _get_selection_dists
+        # to do: selection still needs to be handled:
+        # _resolve_selection and _get_selection_dists
         return 0
 
     @property
@@ -70,9 +72,18 @@ class Pathogen():
         return {
             'pathogens': self.ids.keys(),
             'rates': {
-                'transmission': [self.trans_rates[self.ids[_name]] for _name in self.ids.keys()],
-                'recover': [self.rec_rates[self.ids[_name]] for _name in self.ids.keys()],
-                'selection': [self._select_rates[self.ids[_name]] for _name in self.ids.keys()]
+                'transmission': [
+                    self.trans_rates[self.ids[_name]]
+                    for _name in self.ids.keys()
+                ],
+                'recover': [
+                    self.rec_rates[self.ids[_name]]
+                    for _name in self.ids.keys()
+                ],
+                'selection': [
+                    self._select_rates[self.ids[_name]]
+                    for _name in self.ids.keys()
+                ]
             }
         }
 
@@ -84,8 +95,10 @@ class Pathogen():
         Check the integrity of the ensemble of _strains.
         """
         if len(list(set(self._strains))) != len(self._strains):
-            raise self.MissingStrainError('Not all strains have distinct name entries. Please provide a set of strains\
-             with all unique names')
+            raise self.MissingStrainError(
+                'Not all strains have distinct name entries.'
+                'Please provide a set of strains with all unique names'
+            )
         else:
             pass
         return 0
@@ -94,7 +107,8 @@ class Pathogen():
         """
         This populates the self.select_rates list.
 
-        self.select_rates gives for each strain (id is index) the list of mutation rates towards the other strains.
+        self.select_rates gives for each strain (id is index) the list of
+        mutation rates towards the other strains.
         :return:
         """
         names = self.ids.keys()
@@ -107,21 +121,24 @@ class Pathogen():
             for name in self._select_rates[_id]:
                 if name not in names:
                     raise self.MissingStrainError(
-                        "In the selection rates of strain {0:s} appears a unknown strain: {1:s}".format(self.names[_id],
-                                                                                                        name)
+                        "In the selection rates of strain"
+                        "{0:s} appears a unknown strain: {1:s}".format(
+                            self.names[_id], name
+                        )
                     )
                 strain_array[
                     self.ids[name]
                 ] = self._select_rates[_id][name]
             self.select_rates.append(strain_array)
-            #print self.select_rates
+            # print self.select_rates
         return 0
 
     def update_selection(self, concerns, new_rates):
         """
         This updates the self.select_rates list.
 
-        self.select_rates gives for each strain (id is index) the list of mutation rates towards the other strains.
+        self.select_rates gives for each strain (id is index) the list of
+        mutation rates towards the other strains.
         :return:
         """
         self._select_rates[concerns] = new_rates
@@ -135,8 +152,11 @@ class Pathogen():
             for name in self._select_rates[_id]:
                 if name not in names:
                     raise self.MissingStrainError(
-                        "In the selection rates of strain {0:s} appears a unknown strain: {1:s}".format(self.names[_id],
-                                                                                                        name)
+                        "In the selection rates of strain "
+                        "{0:s} appears a unknown strain: {1:s}".format(
+                            self.names[_id],
+                            name
+                        )
                     )
                 strain_array[
                     self.ids[name]
@@ -209,22 +229,27 @@ class Strain():
                     - 0: The host becomes resistant to this strain -> SIR-model
                     - 1: The host becomes susceptible again -> SIS-model
                     - Default=1: SIS-model
-                    Note: Here we can also implement partial resistance (0<recover_type<1)
-            - selection_rate: The rate at which the strain mutates and gets selected.
+                    Note: Here we can also implement partial resistance
+                        (0<recover_type<1)
+            - selection_rate: The rate at which the strain mutates and gets
+                selected.
                 Default=None: The strain does not mutate
                 The rate can either be given as a float or a dict.
-                If it is a float, the strain mutates to each one of the active 
-                    strains with equal probability and a rate given by the value.
-                It it is a dict, the keys must correspond to a strain name and the
-                    respective value gives the mutation rate towards this strain.
-                    If 'Default' is given in the dict, all missing strains get the value of 'Default'.
-                    E.g. selection_rate={'wild_type':0.5,...}
+                If it is a float, the strain mutates to each one of the active
+                    strains with equal probability and a rate given by the
+                    value.
+                It it is a dict, the keys must correspond to a strain name and
+                    the respective value gives the mutation rate towards this
+                    strain.
+                If 'Default' is given in the dict, all missing strains get the
+                    value of 'Default'.
+                    E.g. selection_rate = {'wild_type': 0.5,...}
                     A selection rate of 0 means no selection.
         """
         self.name = name
         self.b = transmission_rate if isinstance(
                 transmission_rate, (float, int)
-                ) else self._to_rate(transmission_rate)
+                ) else self.to_rate(transmission_rate)
         try:
             self.b_dist = Distro(
                     scale=self.b ** (-1),
@@ -237,7 +262,7 @@ class Strain():
                     )
         self.g = recover_rate if isinstance(
                 recover_rate, (float, int)
-                ) else self._to_rate(recover_rate)
+                ) else self.to_rate(recover_rate)
         try:
             self.g_dist = Distro(
                     scale=self.g ** (-1),
@@ -256,7 +281,8 @@ class Strain():
             self.s = {'Default': 0}
         self.recover_type = recover_type
 
-    def _to_sec(self, a_time):
+    @classmethod
+    def to_sec(self, a_time):
         """
             Converts a time into seconds
 
@@ -288,7 +314,7 @@ class Strain():
             pass
         return to_convert
 
-    def _to_rate(self, exp_time):
+    def to_rate(self, exp_time):
         """
             Give the expected time between events.
 
@@ -304,7 +330,7 @@ class Strain():
                 - 'd' for days
 
         """
-        return 1 / self._to_sec(exp_time)
+        return 1 / self.to_sec(exp_time)
 
         # write get_val functions for the different rates...is presumably
         # faster than calling the fct form the Distro class

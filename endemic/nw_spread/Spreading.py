@@ -4,14 +4,12 @@ import pickle
 from collections import defaultdict
 from numpy import vectorize, array, where, absolute, zeros, count_nonzero
 from numpy import random as nrand
-from numpy import copy as n_copy
 from numpy.ma import divide
 from numpy import append as n_append
 from numpy import sum as n_sum
 from numpy import max as n_max
 from Queue import Empty, PriorityQueue
 from copy import copy, deepcopy
-from collections import Counter
 from RateDistribution import Distro
 
 
