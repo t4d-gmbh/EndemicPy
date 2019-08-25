@@ -20,6 +20,8 @@ To learn which release is the right one for you, here is a list of the published
 
 - **[v0.1.0](https://github.com/j-i-l/EndemicPy/releases/tag/v0.1.0)** for [Short-term activity cycles impede information transmission in ant colonies](https://doi.org/10.1371/journal.pcbi.1005527)
 
+- **[v0.3.0](https://github.com/j-i-l/EndemicPy/releases/tag/v0.3.0)** for [Host population structure impedes reversion to drug sensitivity after discontinuation of treatment]( https://doi.org/10.1371/journal.pcbi.1005704)
+
 ### Dependencies
 The only non-standard python package _endemic_ uses in [numpy](http://www.numpy.org/), so please make sure that you have a recent numpy version installed.
 

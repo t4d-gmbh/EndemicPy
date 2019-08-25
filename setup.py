@@ -17,8 +17,9 @@ if sys.argv[-1] == 'publish':
 
 packages = [
     'endemic',
-    'endemic/nw_construct',
-    'endemic/nw_spread'
+    'endemic.nw_construct',
+    'endemic.nw_spread'
+    'endemic.test'
 ]
 
 requires = ['numpy']# 'networkx']
