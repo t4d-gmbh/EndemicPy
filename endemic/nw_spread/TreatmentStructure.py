@@ -10,7 +10,7 @@ class Treatment():
         self.n = len(self.therapies)
         self.names = {}
         self.ids = {}
-        #could call _append_therapy here rest is not needed
+        # could call _append_therapy here rest is not needed
         for a_therapy in therapies:
             self._append_therapy(a_therapy)
         self._check_integrity()

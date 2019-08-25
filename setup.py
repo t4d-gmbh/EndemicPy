@@ -44,7 +44,7 @@ setup(
     description='Simulation of disease outbreak on various host structures',
     long_description=readme + '\n\n',  # + history,
     author='Jonas I. Liechti',
-    author_email='jonas.i.liechti@protonmail.ch',
+    author_email='jonas.i.liechti@gmail.com',
     url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy',
     download_url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy/repository/archive.tar.gz?ref=v%s' % str(version),
     keywords=['disease spread', 'network', 'SIS', 'SIR', 'UIU', 'information propagation'],

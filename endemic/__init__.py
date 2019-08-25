@@ -1,9 +1,9 @@
 __title__ = 'endemic'
-__version__ = '0.1.0'
-#__build__ =
+__version__ = '0.3.0'
+# __build__ =
 __author__ = 'Jonas I Liechti'
 __license__ = 'MIT'
-__copyright__ = 'Copyright 2016 Jonas I. Liechti'
+__copyright__ = 'Copyright 2019 Jonas I. Liechti'
 """
 
 

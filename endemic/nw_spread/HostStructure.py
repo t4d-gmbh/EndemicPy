@@ -86,6 +86,7 @@ class ContactStructure():
 
     @property
     def info(self):
+        # ToDo: would make sense to define this.
         return self.graph_info
 
     def _check_integrity(self):
@@ -193,13 +194,17 @@ class ContactSequence(ContactStructure):
         )
         nn1 = self.node1s.view()[the_filter]
         nn2 = self.node2s.view()[the_filter]
+
         nn = np.where(
             node_id != nn1,
             nn1,
             nn2
         )
-        return nn, self.starts.view()[the_filter], \
+        return (
+            nn,
+            self.starts.view()[the_filter],
             self.stops.view()[the_filter]
+        )
 
 
 class Host():
