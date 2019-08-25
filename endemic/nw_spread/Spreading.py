@@ -937,46 +937,6 @@ class Scenario():
                 )
         return 0
 
-    # # this method is not used anymore. Could be removed.
-    # def initiate_infection(self, strain, ):
-    #     """
-    #     Function to set the initial seed for an infection.
-    #
-    #     Arguments:
-    #         - strains: dict, key the name of a strain, value a list of node
-    #               id's or 'random'. If the value is 'random' then one random
-    #               host is infected.
-    #               Eg. strain = {'wild_type':[1,5,10]}: infects _hosts 1,5 and
-    #               10 with the wild type strain.
-    #     """
-    #     self.t = 0
-    #     for name in strain:
-    #         if name not in self.pathogen.ids.keys():
-    #             raise self.WrongPathogenError(
-    #                 "There is no pathogen strain with the name <%s>." % name)
-    #         if type(strain[name]) is not str:
-    #             for node_id in strain[name]:
-    #                 self.current_view[node_id] = self.pathogen.ids[name]
-    #         else:
-    #             self.current_view[
-    #                 nrand.randint(0, self.contact_structure.n)
-    #             ] = self.pathogen.ids[name]
-    #         self._init_queue()
-    #     return 0
-
-    # # unused method can be removed (along with self.initiate_infection)
-    # def _init_queue(self, ):
-    #     """
-    #     Initiate the priority queue according to self.current_view
-    #     """
-    #     for node_id in xrange(self.contact_structure.n):
-    #         if self.current_view[node_id] != -1:
-    #             self.queue.put_nowait(
-    #                 Event(self.t, node_id, self.current_view[node_id], True,)
-    #                 )
-    #             self.current_view[node_id] = -1
-    #     return 0
-
     # here below follow several _handle_event... functions each one of these
     # take an event (node id, token id, inf type, source) as an argument
     # (see Event class for further details) and digest it. Based on the event
@@ -1804,7 +1764,7 @@ class Scenario():
                 # update the strain counts
                 for strain_id in self.pathogen.ids.values():
                     self._count_per_strains[
-                            strain_id] = self.current_view.count(strain_id)
+                            strain_id] = self.get_current_view.count(strain_id)
                 # reset the event queue if the mode has not been adjusted yet
                 # (this should not happen)
                 if to_mode == 'changed':
@@ -2148,7 +2108,7 @@ class Scenario():
                 if self.t >= t_next_bin:
                     # check for the condition
                     for strain_id in surviving_strain_ids:
-                        if not self.current_view.count(strain_id):
+                        if not self.get_current_view.count(strain_id):
                             return 1
                 return 0
 
@@ -2188,7 +2148,7 @@ class Scenario():
                             if logger_mode == 2:
                                 self.status[
                                         round(self.t, self._log_time_rounding)
-                                        ].append(copy(self.current_view))
+                                        ].append(self.get_current_view)
                         t_next_bin += dt
                         # check if we are in _quasistable state (QSS) if yes,
                         # stop the sim
@@ -2305,7 +2265,7 @@ class Scenario():
                             # if self.current_view.count(s_id) >=
                             # rel_id_stop_cond[s_id][0] * ref_val:
                             print 'reached fract.', self._count_per_strains, [
-                                self.current_view.count(i)
+                                self.get_current_view.count(i)
                                 for i in self.pathogen.ids.values()
                             ]
                             # if we stop, we need to provide a new starting
@@ -2364,7 +2324,7 @@ class Scenario():
                                     ].append(self.get_outcome())
                             self.status[
                                     round(self.t, self._log_time_rounding)
-                                    ].append(copy(self.current_view))
+                                    ].append(self.get_current_view)
                             while self.t >= t_next_bin:
                                 t_next_bin += dt
                         if test_cond(self):
@@ -2375,7 +2335,7 @@ class Scenario():
                                 ].append(self.get_outcome())
                         self.status[
                                 round(self.t, self._log_time_rounding)
-                                ].append(copy(self.current_view))
+                                ].append(self.get_current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -2409,7 +2369,7 @@ class Scenario():
                             if logger_mode == 2:
                                 self.status[
                                         round(self.t, self._log_time_rounding)
-                                        ].append(copy(self.current_view))
+                                        ].append(self.get_current_view)
                             while self.t >= t_next_bin:
                                 t_next_bin += dt
                     except Empty:
@@ -2419,7 +2379,7 @@ class Scenario():
                         if logger_mode == 2:
                             self.status[
                                     round(self.t, self._log_time_rounding)
-                                    ].append(copy(self.current_view))
+                                    ].append(self.get_current_view)
                         break
             else:
                 while self.t < t_stop:
@@ -2721,6 +2681,8 @@ class Scenario():
         _output = {}
         if include_seed:
             _output['seed'] = self.seed
+        # use the current view that takes node lifetimes into account
+        current_view = self.get_current_view
         if self.contact_structure.is_static:
             # ToDo: the degree should be directly accessible from
             # self.contact_structure
@@ -2747,7 +2709,7 @@ class Scenario():
             for strain_id in self.pathogen.names.keys():
                 name = self.pathogen.names[strain_id]
                 _output[name] = {}
-                count = self.current_view.count(strain_id)
+                count = current_view.count(strain_id)
                 _output[name]['count'] = copy(count)
                 strain_acquired = 0
                 strain_degree_count = {}
@@ -2756,7 +2718,7 @@ class Scenario():
                     strain_degree_count[a_degree] = 0
                     strain_degree_acquired[a_degree] = 0
                     for node_id in nodes_per_degree[a_degree]:
-                        if self.current_view[node_id] == strain_id:
+                        if current_view[node_id] == strain_id:
                             strain_degree_count[a_degree] += 1
                             if self.current_infection_type[node_id] == 1:
                                 strain_acquired += 1
@@ -2772,16 +2734,17 @@ class Scenario():
             #     'degree_count': degree_count,
             # }
             # }
+            _output['active'] = len(current_view) - current_view.count(-2)
             for strain_id in self.pathogen.names.keys():
                 # report active nodes
                 name = self.pathogen.names[strain_id]
                 _output[name] = {}
-                count = self.current_view.count(strain_id)
+                count = current_view.count(strain_id)
                 _output[name]['count'] = copy(count)
                 strain_acquired = 0
                 # in active nodes
                 for node_id in xrange(self.contact_structure.n):
-                    if self.current_view[node_id] == strain_id:
+                    if current_view[node_id] == strain_id:
                         if self.current_infection_type[node_id] == 1:
                             strain_acquired += 1
                 _output[name]['acquired'] = copy(strain_acquired)
@@ -2814,11 +2777,17 @@ class Scenario():
         else:
             # Set all nodes that exceeded their lifespan (given by nodes_end)
             # to a special state -2
-            new_current_view = map(
-                lambda i: self.current_view[i]
-                if self.contact_structure.nodes_end[i] > self.t else -2,
-                xrange(len(self.current_view)))
-            return copy(new_current_view)
+            # new_current_view = map(
+            #     lambda i: self.current_view[i]
+            #     if self.contact_structure.nodes_end[i] > self.t else -2,
+            #     xrange(len(self.current_view)))
+            # return copy(new_current_view)
+            return [
+                cv
+                if self.contact_structure.nodes_start[i] < self.t
+                < self.contact_structure.nodes_end[i] else -2
+                for i, cv in enumerate(self.current_view)
+            ]
 
     # to transform the priority queue holding the upcoming events into a
     # pickleabel list
