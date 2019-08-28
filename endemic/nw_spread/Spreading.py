@@ -2,10 +2,10 @@ __author__ = 'Jonas I Liechti'
 import random
 import pickle
 from collections import defaultdict
-from numpy import vectorize, array, where, absolute, zeros, count_nonzero
+from numpy import array, where, absolute, zeros, count_nonzero
 from numpy import random as nrand
 from numpy.ma import divide
-from numpy import append as n_append
+# from numpy import append as n_append
 from numpy import sum as n_sum
 from numpy import max as n_max
 from Queue import Empty, PriorityQueue
@@ -2086,7 +2086,7 @@ class Scenario():
                         for strain_name in assert_survival]
                     )
             # with_logging = params.get('explicit', False)
-            done = False
+            # done = False
 
             # TO DO: start for new structure.The wile loop can be put after the
             # running conditions and each condition defines its proper stepper
@@ -2458,9 +2458,10 @@ class Scenario():
                     )
         # get the reset mode
         general, pathogen_specific = False, False
-        node_specific = False
+        # node_specific = False
         if type(mode) is list:
-            node_specific = True
+            # node_specific = True
+            pass
         elif type(mode) is dict:
             pathogen_specific = True
         else:  # node_specific == True
