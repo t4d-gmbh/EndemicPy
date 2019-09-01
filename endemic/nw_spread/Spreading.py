@@ -256,7 +256,7 @@ class Scenario():
             new ones.
         Note: this is probably only correct for a delay of 0
 
-        :param recover_time: must be given in dt from current time
+        :param recover_time: must be given as duration from current time on
         :param node_id:
         :param token_id:
         :param therapy_id:
