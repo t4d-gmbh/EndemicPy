@@ -1146,8 +1146,8 @@ class Scenario():
                     self.current_therapy[node_id] = -1
         return 0
 
-    # this is the incremental version of the simple event handler. In this
-    # version each change is written to an output file
+    # This is the incremental version of the simple event handler which writes
+    # each change to an output file.
     def _handle_event_simple_inc(self, an_event, get_neighbours):
         """
         This method handles events in a spreading process without treatment nor
