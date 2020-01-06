@@ -2653,6 +2653,7 @@ class Scenario():
         Should be strain specific:
         {time1:
             {
+                'active': how many individuals are currently present.
                 'seed': numpy.random.seed # that was set at the beginning of
                     the phase
                 'network': {
