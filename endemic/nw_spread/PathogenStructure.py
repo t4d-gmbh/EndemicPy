@@ -282,7 +282,7 @@ class Strain():
         self.recover_type = recover_type
 
     @classmethod
-    def to_sec(self, a_time):
+    def to_sec(cls, a_time):
         """
             Converts a time into seconds
 
@@ -314,7 +314,8 @@ class Strain():
             pass
         return to_convert
 
-    def to_rate(self, exp_time):
+    @classmethod
+    def to_rate(cls, exp_time):
         """
             Give the expected time between events.
 
@@ -330,7 +331,7 @@ class Strain():
                 - 'd' for days
 
         """
-        return 1 / self.to_sec(exp_time)
+        return 1 / cls.to_sec(exp_time)
 
         # write get_val functions for the different rates...is presumably
         # faster than calling the fct form the Distro class
