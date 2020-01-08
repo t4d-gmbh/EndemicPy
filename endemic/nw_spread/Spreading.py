@@ -437,9 +437,10 @@ class Scenario():
 
     def set(self, graph=None):
         """
-        This method allow to set and reset the entire scenario, i.e. the
-            scenario is set back to the time t=0 before any initial infections
-            took place.
+        This method allow to set and reset the entire scenario.
+        
+        The scenario is set back to the time t=0 before any initial infections
+        took place.
         It can be called when doing multiple simulations with the same
             parameters.
         If the parameter graph is provided, then the topology of the contact
@@ -932,7 +933,7 @@ class Scenario():
                         self._initiate_infection.__doc__
                     )
                 )
-        return 0
+        return False
 
     # here below follow several _handle_event... functions each one of these
     # take an event (node id, token id, inf type, source) as an argument
@@ -1219,7 +1220,11 @@ class Scenario():
                     self._create_neighbour_events(
                             inf_event, nn, inf_times, node_id, token_id
                             )
-                    # cerate and add the infection events for the neighbours.
+                    self._inc_file_o.write(
+                            'rec_time: {0}, inf_times: {1}\n'.format(
+                                recover_time, '-'.join(inf_times))
+                                )
+                    # create and add the infection events for the neighbours.
         return 0
 
     def _handle_event_selection(self, an_event, get_neighbours):
@@ -1586,11 +1591,10 @@ class Scenario():
                 # note: only transmission_rate and recover_rate changes work.
                 alternations = phase.pop('parameter_alternation')
                 self.simulation_log['param_alternation'][self.t] = alternations
-                self._parameter_alternation(alternations)
-                with_run = False
+                with_run = self._parameter_alternation(alternations)
             if 'new_infection' in phase:
                 infection = phase.pop('new_infection')
-                self._initiate_infection(infection)
+                with_run = self._initiate_infection(infection)
                 try:
                     # ToDo: use the 'modifications' key for other events too
                     self.simulation_log['modifications']['new_infection'] = (
@@ -1600,7 +1604,6 @@ class Scenario():
                     self.simulation_log['modifications'] = {
                             'new_infection': (self.t, infection)
                             }
-                with_run = False
             if 'introducing' in phase:
                 # to do: introduce with a certain rate
                 # introduction_scenario = phase.pop('introducing')
@@ -2402,7 +2405,11 @@ class Scenario():
         :param alternations: a dictionary holding stain names as keys and a
             dictionary as values. Each of the value-dictionaries can contain
             rates as keys and the new desired value as values.
-        :return:
+
+        Returns
+        --------
+        with_run: bool
+          No simulations need to be run in a parameter alternation.
         """
         for strain_name in alternations:
             # get its id
@@ -2428,6 +2435,8 @@ class Scenario():
                         concerns=its_id,
                         new_rates=new_rates
                         )
+        # with_run = False
+        return False
 
     # to do: method should create list of instantaneous infection events then
     # let the list be digested by appropriate event handlers.
