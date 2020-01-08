@@ -134,33 +134,6 @@ class Scenario():
         # This will be the stream to an output file to write incremental steps
         # into.
 
-    def _set_seed(self, seed=None):
-        """
-        Create a new seed, set the seed and return it.
-
-        Parameters:
-        -----------
-        :param use_seed: If provided this seed will be used to set the RNG
-            use_seed can be a string in which case it will be treated as the
-            path to a pickle file containing the seed.
-        :return: a numpy random seed
-        """
-
-        # # save seed
-        # with open('test_seed.p', 'wb') as f:
-        #     pickle.dump(nrand.get_state(), f, protocol=2)
-        # load seed
-
-        if isinstance(seed, str):
-            with open(seed, 'rb') as f:
-                nrand.set_state(pickle.load(f))
-        elif seed is not None:
-            nrand.set_state(seed)
-        else:
-            # init seed
-            nrand.seed()
-        return nrand.get_state()
-
     @staticmethod
     def _cut_times(recover_time, start_times, stop_times, inf_times, nn):
         """
@@ -449,7 +422,6 @@ class Scenario():
         :param graph: Graph object from the nw_construct package
         :return:
         """
-
         self.outcome = defaultdict(list)
         # this will store self.current_view at various times
         self.status = defaultdict(list)
@@ -1220,10 +1192,6 @@ class Scenario():
                     self._create_neighbour_events(
                             inf_event, nn, inf_times, node_id, token_id
                             )
-                    self._inc_file_o.write(
-                            'rec_time: {0}, inf_times: {1}\n'.format(
-                                recover_time, '-'.join(inf_times))
-                                )
                     # create and add the infection events for the neighbours.
         return 0
 
@@ -1577,7 +1545,7 @@ class Scenario():
         for _i in xrange(len(phases)):
             phase = deepcopy(phases[_i])
             # get or set a new seed for this phase
-            self.seed = self._set_seed(phase.get('seed', None))
+            self.seed = nrand.get_state()
             # update the seed in the phases log (if no seed was provided use
             # the one generated just before
             self.simulation_log['scenario'][-1][_i]['seed'] = self.seed
