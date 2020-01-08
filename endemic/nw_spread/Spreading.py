@@ -1404,11 +1404,13 @@ class Scenario():
     # this method makes things moving.
     def run(self, phases):
         """
-        This method will work through a list of phases. Each phase is a
-        dictionary and each entry in this dictionary can be seen as a task.
-        You might just specify a single task for a phase or several but in
-        order to keep things tractable, use as few tasks as possible for a
-        phase.
+        This method runs through a list of phases.
+
+        Each phase is a dictionary and each entry in this dictionary can be
+        seen as a task. You might just specify a single task for a phase or
+        several but in order to keep things tractable, use as few tasks as
+        possible for a phase.
+
         All tasks
         Below are all possible tasks listed.
 
@@ -1435,7 +1437,7 @@ class Scenario():
                     ends earlier (e.g. if 'building_up' task if provided -
                     see below). For such cases we cannot tell at what time the
                     phase ends and thus at what time the next phase should
-                    start. For this there is the self._pase_passon attribute
+                    start. For this there is the self._phase_passon attribute
                     which will be used
 
             'dt': float
@@ -1476,7 +1478,7 @@ class Scenario():
                     name of present strains, e.g. the wild_type.
             'explicit': integer.
                 This task forces the scenario to provide detailed status
-                reports over the entire simulation.  If explicit==1, then on
+                reports over the entire simulation. If explicit==1, then on
                 every self.dt the self.get_outcome is written into
                 self.simulation_log.
                 If explicit==2, then on every self.dt the current status is

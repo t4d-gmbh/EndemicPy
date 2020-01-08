@@ -298,7 +298,7 @@ class Strain():
                 - 'd' for days
 
         """
-        times = re.findall("[-+]?\d*\.\d+|\d+", a_time)
+        times = re.findall(r"[-+]?\d*\.\d+|\d+", a_time)
         to_convert = float(times[0])
         a_time.replace(' ', '')
         if 'sec' in a_time:
