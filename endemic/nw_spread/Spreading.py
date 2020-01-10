@@ -496,6 +496,10 @@ class Scenario():
         # provided.
         if graph:
             self.contact_structure.update_topology(graph)
+
+        # reset the susceptibility status of the hosts in the contact structure
+        self.contact_structure.reset()
+
         return None
 
     def _resolve_hots_pathogen_relations(self):
@@ -506,30 +510,10 @@ class Scenario():
             See ContactNetwork for more details.
         :return:
         """
-        # run through all the hosts
-        for host_id in xrange(len(self.contact_structure._susceptible)):
-            # get the susceptibility status for this host
-            a_suscept = self.contact_structure._susceptible[host_id]
-            # get the default value either from the ContactNetwork object
-            if 'Default' in a_suscept:
-                default = a_suscept.pop('Default')
-            # or from self
-            else:
-                default = self._default_susceptibility
-            # initialize all susceptibilities as the default
-            self.contact_structure.susceptible[host_id] = [
-                    default for _ in xrange(self.pathogen.n)
-                    ]
-            # if other values are provided (e.g. wild_type: 0.5) convert the
-            # pathogen strain name to its id and set the susceptibility for
-            # this strain
-            for strain_name in a_suscept:
-                self.contact_structure.susceptible[
-                        host_id
-                        ][
-                                self.pathogen.ids[strain_name]
-                                ] = a_suscept[strain_name]
-        return 0
+        return self.contact_structure.resolve_pathogen_relations(
+            self.pathogen,
+            self._default_susceptibility
+        )
 
     def _resolve_treatment_pathogen_relations(self):
         """
