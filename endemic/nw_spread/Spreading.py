@@ -67,13 +67,13 @@ class Scenario():
 
         self.contact_structure = contact_structure
         self.pathogen = pathogen
+        # init of optional and internal arguments
+        self._default_susceptibility = 1  # by default hosts are susceptible
 
         # Function does most of the init part. If called, the scenario is set
         # back to the beginning and a new simulation can be run.
         self.set()
 
-        # init of optional and internal arguments
-        self._default_susceptibility = 1  # by default hosts are susceptible
         # by default drugs do not increase mutation/selection rates
         self._default_drug_selection_factor = 1
         # should a contact lead to multiple transmission events:
