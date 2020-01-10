@@ -104,7 +104,6 @@ class Scenario():
                 'ignore_dyn_nodes_in_log', False
                 )
         self._time_rounding = params.get('time_rounding', 4)
-        self._resolve_hots_pathogen_relations()
         # by default do not consider selection
         self.skip_selection = True
         # run through all the pathogens provided
@@ -470,6 +469,7 @@ class Scenario():
         if graph:
             self.contact_structure.update_topology(graph)
 
+        self._resolve_hots_pathogen_relations()
         # reset the susceptibility status of the hosts in the contact structure
         self.contact_structure.reset()
 
