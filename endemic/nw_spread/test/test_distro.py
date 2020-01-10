@@ -56,8 +56,8 @@ class TestDistro(TestCase):
         self.assertEqual(
                 queue_list,
                 queue_list_after,
-                'Dumping the distro into a pickle altered the queue' \
-                    'content:\n{0}'.format('\n'.join(
+                'Dumping the distro into a pickle altered the queue'
+                'content:\n{0}'.format('\n'.join(
                         map(str, zip(queue_list, queue_list_after))
                         )
                     )
@@ -78,8 +78,8 @@ class TestDistro(TestCase):
             pickle.dump(self.distro, f)
         with open(self.temp_pickle_file, 'rb') as f:
             distro2 = pickle.load(f)
-        queue_list= []
-        queue_size= self.distro.queue.qsize()
+        queue_list = []
+        queue_size = self.distro.queue.qsize()
         while True:
             try:
                 queue_list.append(self.distro.queue.get_nowait())
@@ -100,8 +100,8 @@ class TestDistro(TestCase):
         self.assertEqual(
                 queue_list,
                 queue_list_loaded,
-                'Dumping the distro into a pickle altered the queue' \
-                    'content:\n{0}'.format('\n'.join(
+                'Dumping the distro into a pickle altered the queue'
+                'content:\n{0}'.format('\n'.join(
                         map(str, zip(queue_list, queue_list_loaded))
                         )
                     )
@@ -125,15 +125,16 @@ class TestDistro(TestCase):
         self.assertEqual(
                 distro_values,
                 distro2_values,
-                'Distro.get_val and Distro.v_get do not produce '\
-                        'identical output'
+                'Distro.get_val and Distro.v_get do not produce '
+                'identical output'
                 )
 
     def test_distro_draw_fct_load(self):
         """
         Reproducibility of Distro.draw_fct upon pickleing
         """
-        from numpy import array as narray
+        # unsure why narray is here
+        # from numpy import array as narray
         # save distro
         with open(self.temp_pickle_file, 'wb') as f:
             pickle.dump(self.distro, f)

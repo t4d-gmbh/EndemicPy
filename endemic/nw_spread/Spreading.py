@@ -134,33 +134,6 @@ class Scenario():
         # This will be the stream to an output file to write incremental steps
         # into.
 
-    def _set_seed(self, seed=None):
-        """
-        Create a new seed, set the seed and return it.
-
-        Parameters:
-        -----------
-        :param use_seed: If provided this seed will be used to set the RNG
-            use_seed can be a string in which case it will be treated as the
-            path to a pickle file containing the seed.
-        :return: a numpy random seed
-        """
-
-        # # save seed
-        # with open('test_seed.p', 'wb') as f:
-        #     pickle.dump(nrand.get_state(), f, protocol=2)
-        # load seed
-
-        if isinstance(seed, str):
-            with open(seed, 'rb') as f:
-                nrand.set_state(pickle.load(f))
-        elif seed is not None:
-            nrand.set_state(seed)
-        else:
-            # init seed
-            nrand.seed()
-        return nrand.get_state()
-
     @staticmethod
     def _cut_times(recover_time, start_times, stop_times, inf_times, nn):
         """
@@ -437,9 +410,10 @@ class Scenario():
 
     def set(self, graph=None):
         """
-        This method allow to set and reset the entire scenario, i.e. the
-            scenario is set back to the time t=0 before any initial infections
-            took place.
+        This method allow to set and reset the entire scenario.
+        
+        The scenario is set back to the time t=0 before any initial infections
+        took place.
         It can be called when doing multiple simulations with the same
             parameters.
         If the parameter graph is provided, then the topology of the contact
@@ -448,7 +422,6 @@ class Scenario():
         :param graph: Graph object from the nw_construct package
         :return:
         """
-
         self.outcome = defaultdict(list)
         # this will store self.current_view at various times
         self.status = defaultdict(list)
@@ -916,7 +889,7 @@ class Scenario():
                         self._initiate_infection.__doc__
                     )
                 )
-        return 0
+        return False
 
     # here below follow several _handle_event... functions each one of these
     # take an event (node id, token id, inf type, source) as an argument
@@ -1203,7 +1176,7 @@ class Scenario():
                     self._create_neighbour_events(
                             inf_event, nn, inf_times, node_id, token_id
                             )
-                    # cerate and add the infection events for the neighbours.
+                    # create and add the infection events for the neighbours.
         return 0
 
     def _handle_event_selection(self, an_event, get_neighbours):
@@ -1388,11 +1361,13 @@ class Scenario():
     # this method makes things moving.
     def run(self, phases):
         """
-        This method will work through a list of phases. Each phase is a
-        dictionary and each entry in this dictionary can be seen as a task.
-        You might just specify a single task for a phase or several but in
-        order to keep things tractable, use as few tasks as possible for a
-        phase.
+        This method runs through a list of phases.
+
+        Each phase is a dictionary and each entry in this dictionary can be
+        seen as a task. You might just specify a single task for a phase or
+        several but in order to keep things tractable, use as few tasks as
+        possible for a phase.
+
         All tasks
         Below are all possible tasks listed.
 
@@ -1419,7 +1394,7 @@ class Scenario():
                     ends earlier (e.g. if 'building_up' task if provided -
                     see below). For such cases we cannot tell at what time the
                     phase ends and thus at what time the next phase should
-                    start. For this there is the self._pase_passon attribute
+                    start. For this there is the self._phase_passon attribute
                     which will be used
 
             'dt': float
@@ -1460,7 +1435,7 @@ class Scenario():
                     name of present strains, e.g. the wild_type.
             'explicit': integer.
                 This task forces the scenario to provide detailed status
-                reports over the entire simulation.  If explicit==1, then on
+                reports over the entire simulation. If explicit==1, then on
                 every self.dt the self.get_outcome is written into
                 self.simulation_log.
                 If explicit==2, then on every self.dt the current status is
@@ -1554,7 +1529,7 @@ class Scenario():
         for _i in xrange(len(phases)):
             phase = deepcopy(phases[_i])
             # get or set a new seed for this phase
-            self.seed = self._set_seed(phase.get('seed', None))
+            self.seed = nrand.get_state()
             # update the seed in the phases log (if no seed was provided use
             # the one generated just before
             self.simulation_log['scenario'][-1][_i]['seed'] = self.seed
@@ -1568,11 +1543,10 @@ class Scenario():
                 # note: only transmission_rate and recover_rate changes work.
                 alternations = phase.pop('parameter_alternation')
                 self.simulation_log['param_alternation'][self.t] = alternations
-                self._parameter_alternation(alternations)
-                with_run = False
+                with_run = self._parameter_alternation(alternations)
             if 'new_infection' in phase:
                 infection = phase.pop('new_infection')
-                self._initiate_infection(infection)
+                with_run = self._initiate_infection(infection)
                 try:
                     # ToDo: use the 'modifications' key for other events too
                     self.simulation_log['modifications']['new_infection'] = (
@@ -1582,7 +1556,6 @@ class Scenario():
                     self.simulation_log['modifications'] = {
                             'new_infection': (self.t, infection)
                             }
-                with_run = False
             if 'introducing' in phase:
                 # to do: introduce with a certain rate
                 # introduction_scenario = phase.pop('introducing')
@@ -2384,7 +2357,11 @@ class Scenario():
         :param alternations: a dictionary holding stain names as keys and a
             dictionary as values. Each of the value-dictionaries can contain
             rates as keys and the new desired value as values.
-        :return:
+
+        Returns
+        --------
+        with_run: bool
+          No simulations need to be run in a parameter alternation.
         """
         for strain_name in alternations:
             # get its id
@@ -2410,6 +2387,8 @@ class Scenario():
                         concerns=its_id,
                         new_rates=new_rates
                         )
+        # with_run = False
+        return False
 
     # to do: method should create list of instantaneous infection events then
     # let the list be digested by appropriate event handlers.
@@ -2637,6 +2616,7 @@ class Scenario():
         Should be strain specific:
         {time1:
             {
+                'active': how many individuals are currently present.
                 'seed': numpy.random.seed # that was set at the beginning of
                     the phase
                 'network': {

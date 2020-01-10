@@ -22,7 +22,7 @@ packages = [
     'endemic.test'
 ]
 
-requires = ['numpy']# 'networkx']
+requires = ['numpy']  # 'networkx']
 
 version = ''
 with open('endemic/__init__.py', 'r') as fd:
@@ -36,8 +36,8 @@ if not version:
 
 with open('README.rst', 'r', 'utf-8') as f:
     readme = f.read()
-#with open('HISTORY.rst', 'r', 'utf-8') as f:
-#    history = f.read()
+# with open('HISTORY.rst', 'r', 'utf-8') as f:
+#     history = f.read()
 
 setup(
     name='endemic',
@@ -47,8 +47,12 @@ setup(
     author='Jonas I. Liechti',
     author_email='jonas.i.liechti@protonmail.ch',
     url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy',
-    download_url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy/repository/archive.tar.gz?ref=v%s' % str(version),
-    keywords=['disease spread', 'network', 'SIS', 'SIR', 'UIU', 'information propagation'],
+    download_url='https://tb-git.usys.ethz.ch/j-i-l/EndemicPy/repository/'
+        'archive.tar.gz?ref=v%s' % str(version),
+    keywords=[
+        'disease spread', 'network', 'SIS', 'SIR', 'UIU',
+        'information propagation'
+        ],
     packages=packages,
     package_data={'': ['LICENSE', 'HISTORY']},
     package_dir={'endemic': 'endemic'},
@@ -64,7 +68,7 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.7',
         'Operating System :: OS Independent'
-    ),
+        ),
     # dependency_links = [
     #     "http://..."
     # ],
