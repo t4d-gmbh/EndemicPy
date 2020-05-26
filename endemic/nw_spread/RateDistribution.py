@@ -82,6 +82,13 @@ class Distro(object):
             **kwargs
     ):
         self.distribution_type = distribution_type
+        self.reset_random(**kwargs)
+
+    def reset_random(self, **kwargs):
+        """
+        (Re)set random number generator along with the distribution and queue.
+
+        """
         self._init_draw_fct(**kwargs)
         self.queue = SimpleQueue(maxsize=self._dist_params['size'])
         # fill the queue
@@ -99,6 +106,9 @@ class Distro(object):
         return [self.get_val() for _ in xrange(length)]
 
     def _init_draw_fct(self, **kwargs):
+        """
+        Initiate the random number generator and the distribution to draw from.
+        """
         if self.distribution_type == 'exp':
             self.draw_fct = n_rand.exponential
             self._dist_params = {

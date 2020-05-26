@@ -1,5 +1,6 @@
 __author__ = 'Jonas I Liechti'
 import numpy as np
+from copy import deepcopy
 
 
 class ContactStructure():
@@ -137,6 +138,46 @@ class ContactStructure():
                     )
         # this is only filled up in the Scenario class in the Spreading module.
         self.susceptible = [[] for _ in xrange(len(self._susceptible))]
+        self.susceptible_initial = None
+
+    def reset(self):
+        """
+        Set the contact structure back to the initial condition.
+
+        This includes the susceptibility status of individual hosts which
+        might change throughout an SIR type of simulation.
+        """
+        self.susceptible = deepcopy(self.susceptible_initial)
+
+    def resolve_pathogen_relations(self, pathogen, default_susceptibility):
+        if self.susceptible_initial is None:
+            for host_id in xrange(len(self._susceptible)):
+                # get the susceptibility status for this host
+                a_suscept = self._susceptible[host_id]
+                # get the default value either from the ContactNetwork object
+                if 'Default' in a_suscept:
+                    default = a_suscept.pop('Default')
+                # or from self
+                else:
+                    # 
+                    default = default_susceptibility
+                # initialize all susceptibilities as the default
+                #
+                self.susceptible[host_id] = [
+                        default for _ in xrange(pathogen.n)
+                        ]
+                # if other values are provided (e.g. wild_type: 0.5) convert
+                # the pathogen strain name to its id and set the susceptibility
+                # for this strain
+                for strain_name in a_suscept:
+                    self.susceptible[
+                            host_id
+                            ][
+                                    pathogen.ids[strain_name]
+                                    ] = a_suscept[strain_name]
+            self.susceptible_initial = deepcopy(self.susceptible)
+            return 0
+
 
     class HostOrderError(Exception):
         pass
